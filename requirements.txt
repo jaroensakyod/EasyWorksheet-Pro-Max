@@ -3,3 +3,5 @@ reportlab
 qrcode
 python-docx
 google-generativeai
+
+pypdf
