@@ -1,0 +1,5 @@
+streamlit
+reportlab
+qrcode
+python-docx
+google-generativeai
