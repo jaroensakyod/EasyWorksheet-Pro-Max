@@ -104,7 +104,7 @@ class WorksheetGenerator:
                 try:
                     self.client = Groq(api_key=ai_api_key)
                     # Groq uses Llama and other models - fast inference
-                    self.model_name = "groq-llama"  # Will be set per request
+                    self.model_name = "llama-3.3-70b-versatile"  # Will be set per request
                     print(f"[OK] Groq client initialized successfully")
                 except Exception as e:
                     print(f"[!] Groq client initialization failed: {e}")
@@ -158,7 +158,7 @@ class WorksheetGenerator:
                         {"role": "system", "content": "You are a helpful Thai education assistant that creates worksheets and exercises."},
                         {"role": "user", "content": prompt}
                     ],
-                    model="llama3-8b-8192",  # Fast Llama 3 model
+                    model="llama-3.3-70b-versatile",  # Latest Llama 3 model
                     temperature=0.7,
                 )
                 return chat_completion.choices[0].message.content
