@@ -174,3 +174,212 @@ class PDFExporter:
         c.save()
         buffer.seek(0)
         return buffer
+
+
+    def create_content_pdf(self, title, school_name, content_type, questions, answers, qr_url=None, logo=None, summary=None, image=None):
+        """Create a PDF with worksheet, summary, or quiz content"""
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        
+        left_margin = 1.5 * cm
+        right_margin = width - 1.5 * cm
+        top_margin = height - 2 * cm
+        bottom_margin = 2 * cm
+        
+        # Header
+        if school_name:
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(left_margin, top_margin, school_name)
+        
+        c.setFont("Helvetica-Bold", 16)
+        c.drawCentredString(width / 2, top_margin - 1 * cm, title)
+        c.setFont("Helvetica", 12)
+        c.drawCentredString(width / 2, top_margin - 1.8 * cm, content_type)
+        c.line(left_margin, top_margin - 2.3 * cm, right_margin, top_margin - 2.3 * cm)
+        
+        y_position = top_margin - 3 * cm
+        
+        # If summary, show it first
+        if summary:
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(left_margin, y_position, "สรุปเนื้อหา / Summary")
+            y_position -= 0.8 * cm
+            
+            c.setFont("Helvetica", 11)
+            # Wrap summary text
+            import textwrap
+            wrapper = textwrap.TextWrapper(width=70)
+            wrapped_summary = wrapper.wrap(summary)
+            
+            for line in wrapped_summary:
+                if y_position < bottom_margin:
+                    c.showPage()
+                    y_position = top_margin - 1 * cm
+                c.drawString(left_margin, y_position, line)
+                y_position -= 0.5 * cm
+            
+            y_position -= 0.5 * cm
+        
+        # Show questions
+        c.setFont("Helvetica-Bold", 14)
+        if "สรุป" in content_type:
+            c.drawString(left_margin, y_position, "แบบทดสอบความเข้าใจ")
+        else:
+            c.drawString(left_margin, y_position, content_type)
+        y_position -= 0.8 * cm
+        
+        c.setFont("Helvetica", 12)
+        line_height = 0.7 * cm
+        
+        for i, question in enumerate(questions, 1):
+            if y_position < bottom_margin:
+                c.showPage()
+                y_position = top_margin - 1 * cm
+            
+            question_text = f"{i}. {question}" if len(str(i)) == 1 else f"{i}. {question}"
+            # Wrap long questions
+            import textwrap
+            wrapper = textwrap.TextWrapper(width=65)
+            wrapped = wrapper.wrap(question_text)
+            
+            for line in wrapped:
+                if y_position < bottom_margin:
+                    c.showPage()
+                    y_position = top_margin - 1 * cm
+                c.drawString(left_margin + (0.5 * cm if str(i) else 0), y_position, line)
+                y_position -= line_height
+        
+        # Answer key on new page
+        c.showPage()
+        c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(width / 2, top_margin, "เฉลย / Answer Key")
+        c.setFont("Helvetica", 12)
+        y_position = top_margin - 1.5 * cm
+        
+        for i, answer in enumerate(answers, 1):
+            if y_position < bottom_margin:
+                c.showPage()
+                y_position = top_margin - 1 * cm
+            c.drawString(left_margin, y_position, f"{i}. {answer}")
+            y_position -= 0.6 * cm
+        
+        c.save()
+        buffer.seek(0)
+        return buffer
+
+
+    def create_summary_pdf(self, title, school_name, content_type, summary, qr_url=None, logo=None):
+        """Create a PDF with summary content"""
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        
+        left_margin = 1.5 * cm
+        right_margin = width - 1.5 * cm
+        top_margin = height - 2 * cm
+        bottom_margin = 2 * cm
+        
+        # Header
+        if school_name:
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(left_margin, top_margin, school_name)
+        
+        c.setFont("Helvetica-Bold", 16)
+        c.drawCentredString(width / 2, top_margin - 1 * cm, title)
+        c.setFont("Helvetica", 12)
+        c.drawCentredString(width / 2, top_margin - 1.8 * cm, content_type)
+        c.line(left_margin, top_margin - 2.3 * cm, right_margin, top_margin - 2.3 * cm)
+        
+        y_position = top_margin - 3 * cm
+        
+        # Show summary
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(left_margin, y_position, "สรุปเนื้อหา / Summary")
+        y_position -= 0.8 * cm
+        
+        c.setFont("Helvetica", 11)
+        # Wrap summary text
+        import textwrap
+        wrapper = textwrap.TextWrapper(width=65)
+        wrapped_summary = wrapper.wrap(summary)
+        
+        for line in wrapped_summary:
+            if y_position < bottom_margin:
+                c.showPage()
+                y_position = top_margin - 1 * cm
+            c.drawString(left_margin, y_position, line)
+            y_position -= 0.6 * cm
+        
+        c.save()
+        buffer.seek(0)
+        return buffer
+    
+    def create_quiz_pdf(self, title, school_name, content_type, questions, answers, qr_url=None, logo=None):
+        """Create a PDF with quiz content"""
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        
+        left_margin = 1.5 * cm
+        right_margin = width - 1.5 * cm
+        top_margin = height - 2 * cm
+        bottom_margin = 2 * cm
+        
+        # Header
+        if school_name:
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(left_margin, top_margin, school_name)
+        
+        c.setFont("Helvetica-Bold", 16)
+        c.drawCentredString(width / 2, top_margin - 1 * cm, title)
+        c.setFont("Helvetica", 12)
+        c.drawCentredString(width / 2, top_margin - 1.8 * cm, content_type)
+        c.line(left_margin, top_margin - 2.3 * cm, right_margin, top_margin - 2.3 * cm)
+        
+        y_position = top_margin - 3 * cm
+        
+        # Show questions
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(left_margin, y_position, content_type)
+        y_position -= 0.8 * cm
+        
+        c.setFont("Helvetica", 12)
+        line_height = 0.7 * cm
+        
+        for i, question in enumerate(questions, 1):
+            if y_position < bottom_margin:
+                c.showPage()
+                y_position = top_margin - 1 * cm
+            
+            question_text = f"{i}. {question}"
+            # Wrap long questions
+            import textwrap
+            wrapper = textwrap.TextWrapper(width=65)
+            wrapped = wrapper.wrap(question_text)
+            
+            for line in wrapped:
+                if y_position < bottom_margin:
+                    c.showPage()
+                    y_position = top_margin - 1 * cm
+                indent = 0.5 * cm if len(str(i)) == 1 else 0
+                c.drawString(left_margin + indent, y_position, line)
+                y_position -= line_height
+        
+        # Answer key on new page
+        c.showPage()
+        c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(width / 2, top_margin, "เฉลย / Answer Key")
+        c.setFont("Helvetica", 12)
+        y_position = top_margin - 1.5 * cm
+        
+        for i, answer in enumerate(answers, 1):
+            if y_position < bottom_margin:
+                c.showPage()
+                y_position = top_margin - 1 * cm
+            c.drawString(left_margin, y_position, f"{i}. {answer}")
+            y_position -= 0.6 * cm
+        
+        c.save()
+        buffer.seek(0)
+        return buffer
