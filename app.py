@@ -146,7 +146,7 @@ def check_api_required():
     return False
 
 def show_api_warning():
-    """Show yellow warning popup for missing API"""
+    """Show yellow warning popup for missing or non-working API"""
     provider_name = st.session_state.api_provider if st.session_state.api_provider else "AI"
     st.warning(f"⚠️ **ต้องใช้ {provider_name} API Key** สำหรับฟีเจอร์นี้ค่ะ!", icon="🔑")
     st.info("📌 กรอก API Key ได้ที่ด้านบนของหน้าจอนี้เลยค่ะ")
@@ -158,6 +158,17 @@ def show_api_warning():
         st.markdown("[👉 ขอ API Key ที่นี่ (Groq Console)](https://console.groq.com)")
     elif st.session_state.api_provider == "OpenRouter":
         st.markdown("[👉 ขอ API Key ที่นี่ (OpenRouter)](https://openrouter.ai)")
+
+def check_ai_and_generate(generator, generate_func, *args, **kwargs):
+    """Check if AI is working, if not use template generation"""
+    if generator.is_ai_working():
+        # AI is working, use AI generation
+        return generate_func(*args, **kwargs)
+    else:
+        # AI not working, show warning and use fallback
+        st.warning("⚠️ **AI ไม่ทำงาน กำลังใช้แบบตัวอย่างแทนค่ะ**")
+        st.info("💡 หากต้องการใช้ AI กรุณาตรวจสอบ API Key ที่ด้านบนนะคะ")
+        return None  # Will be handled by caller
 
 # --- Main Content Area ---
 

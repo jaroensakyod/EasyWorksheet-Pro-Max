@@ -116,6 +116,12 @@ class WorksheetGenerator:
             return self.ai.generate(prompt)
         return None
     
+    def is_ai_working(self):
+        """Check if AI provider is working"""
+        if self.ai and hasattr(self.ai, 'test_connection'):
+            return self.ai.test_connection()
+        return False
+    
     def _create_ai_prompt(self, subject, topic, grade, num_questions, exercise_type="mix"):
         """Create AI prompt for worksheet generation"""
         return f"""Create {num_questions} {subject} exercises for Thai students.
@@ -139,80 +145,95 @@ Answers:
     
     def generate_ai_worksheet(self, topic, grade, num_questions):
         """Generate worksheet using AI"""
-        prompt = self._create_ai_prompt("Math", topic, grade, num_questions)
-        result = self._call_ai(prompt)
+        # Check if AI is working first
+        if self.is_ai_working():
+            prompt = self._create_ai_prompt("Math", topic, grade, num_questions)
+            result = self._call_ai(prompt)
+            
+            if result:
+                questions, answers = self._parse_ai_response(result)
+                if questions and answers:
+                    return questions, answers
         
-        if result:
-            questions, answers = self._parse_ai_response(result)
-            if questions and answers:
-                return questions, answers
-        
-        # Fallback
+        # Fallback to template generation
+        print("[INFO] AI not working, using template generation")
         return self.generate_questions("บวก (+)", num_questions, 1, 100)
     
     def generate_science_worksheet(self, topic, grade, num_questions):
         """Generate science worksheet using AI"""
-        prompt = self._create_ai_prompt("Science", topic, grade, num_questions)
-        result = self._call_ai(prompt)
+        if self.is_ai_working():
+            prompt = self._create_ai_prompt("Science", topic, grade, num_questions)
+            result = self._call_ai(prompt)
+            
+            if result:
+                questions, answers = self._parse_ai_response(result)
+                if questions and answers:
+                    return questions, answers
         
-        if result:
-            questions, answers = self._parse_ai_response(result)
-            if questions and answers:
-                return questions, answers
-        
+        # Fallback to template generation
+        print("[INFO] AI not working, using template generation")
         return [f"คำถามเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบสำหรับ {topic}" for _ in range(num_questions)]
     
     def generate_chemistry_worksheet(self, topic, grade, num_questions):
         """Generate chemistry worksheet using AI"""
-        prompt = self._create_ai_prompt("Chemistry", topic, grade, num_questions)
-        result = self._call_ai(prompt)
+        if self.is_ai_working():
+            prompt = self._create_ai_prompt("Chemistry", topic, grade, num_questions)
+            result = self._call_ai(prompt)
+            
+            if result:
+                questions, answers = self._parse_ai_response(result)
+                if questions and answers:
+                    return questions, answers
         
-        if result:
-            questions, answers = self._parse_ai_response(result)
-            if questions and answers:
-                return questions, answers
-        
+        print("[INFO] AI not working, using template generation")
         return [f"คำถามเคมีเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
     
     def generate_physics_worksheet(self, topic, grade, num_questions):
         """Generate physics worksheet using AI"""
-        prompt = self._create_ai_prompt("Physics", topic, grade, num_questions)
-        result = self._call_ai(prompt)
+        if self.is_ai_working():
+            prompt = self._create_ai_prompt("Physics", topic, grade, num_questions)
+            result = self._call_ai(prompt)
+            
+            if result:
+                questions, answers = self._parse_ai_response(result)
+                if questions and answers:
+                    return questions, answers
         
-        if result:
-            questions, answers = self._parse_ai_response(result)
-            if questions and answers:
-                return questions, answers
-        
+        print("[INFO] AI not working, using template generation")
         return [f"คำถามฟิสิกส์เกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
     
     def generate_biology_worksheet(self, topic, grade, num_questions):
         """Generate biology worksheet using AI"""
-        prompt = self._create_ai_prompt("Biology", topic, grade, num_questions)
-        result = self._call_ai(prompt)
+        if self.is_ai_working():
+            prompt = self._create_ai_prompt("Biology", topic, grade, num_questions)
+            result = self._call_ai(prompt)
+            
+            if result:
+                questions, answers = self._parse_ai_response(result)
+                if questions and answers:
+                    return questions, answers
         
-        if result:
-            questions, answers = self._parse_ai_response(result)
-            if questions and answers:
-                return questions, answers
-        
+        print("[INFO] AI not working, using template generation")
         return [f"คำถามชีววิทยาเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
     
     def generate_thai_worksheet(self, topic, grade, num_questions, exercise_type="mix"):
         """Generate Thai worksheet using AI"""
-        prompt = self._create_ai_prompt("Thai Language", topic, grade, num_questions, exercise_type)
-        result = self._call_ai(prompt)
+        if self.is_ai_working():
+            prompt = self._create_ai_prompt("Thai Language", topic, grade, num_questions, exercise_type)
+            result = self._call_ai(prompt)
+            
+            if result:
+                questions, answers = self._parse_ai_response(result)
+                if questions and answers:
+                    return questions, answers
         
-        if result:
-            questions, answers = self._parse_ai_response(result)
-            if questions and answers:
-                return questions, answers
-        
+        print("[INFO] AI not working, using template generation")
         return [f"แบบฝึกหัดภาษาไทยเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
     
     def generate_english_worksheet(self, topic, grade, num_questions, exercise_type="mix"):
         """Generate English worksheet using AI"""
-        prompt = f"""Create {num_questions} English {exercise_type} exercises for Thai students.
+        if self.is_ai_working():
+            prompt = f"""Create {num_questions} English {exercise_type} exercises for Thai students.
 Grade: {grade}
 Topic: {topic}
 
@@ -226,19 +247,21 @@ Answers:
 1. [answer in English]
 2. [answer in English]
 ..."""
+            
+            result = self._call_ai(prompt)
+            
+            if result:
+                questions, answers = self._parse_ai_response(result)
+                if questions and answers:
+                    return questions, answers
         
-        result = self._call_ai(prompt)
-        
-        if result:
-            questions, answers = self._parse_ai_response(result)
-            if questions and answers:
-                return questions, answers
-        
+        print("[INFO] AI not working, using template generation")
         return [f"{exercise_type} exercise about {topic}" for _ in range(num_questions)], [f"Answer" for _ in range(num_questions)]
     
     def generate_ai_word_problems(self, topic, grade, num_questions):
         """Generate AI word problems"""
-        prompt = f"""Create {num_questions} math word problems for Thai students.
+        if self.is_ai_working():
+            prompt = f"""Create {num_questions} math word problems for Thai students.
 Grade: {grade}
 Topic: {topic}
 
@@ -254,19 +277,21 @@ Answers:
 1. [answer with explanation]
 2. [answer with explanation]
 ..."""
+            
+            result = self._call_ai(prompt)
+            
+            if result:
+                questions, answers = self._parse_ai_response(result)
+                if questions and answers:
+                    return questions, answers
         
-        result = self._call_ai(prompt)
-        
-        if result:
-            questions, answers = self._parse_ai_response(result)
-            if questions and answers:
-                return questions, answers
-        
+        print("[INFO] AI not working, using template generation")
         return [f"โจทย์ปัญหาเรื่อง {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
     
     def generate_quiz_from_text(self, text, num_questions):
         """Generate quiz questions from uploaded text"""
-        prompt = f"""Create {num_questions} quiz questions based on the following text.
+        if self.is_ai_working():
+            prompt = f"""Create {num_questions} quiz questions based on the following text.
 Generate questions that test comprehension.
 
 Text: {text[:2000]}
@@ -281,14 +306,15 @@ Answers:
 1. [answer]
 2. [answer]
 ..."""
+            
+            result = self._call_ai(prompt)
+            
+            if result:
+                questions, answers = self._parse_ai_response(result)
+                if questions and answers:
+                    return questions, answers
         
-        result = self._call_ai(prompt)
-        
-        if result:
-            questions, answers = self._parse_ai_response(result)
-            if questions and answers:
-                return questions, answers
-        
+        print("[INFO] AI not working, using template generation")
         return ["คำถามจากบทความ"], ["คำตอบ"]
     
     def _parse_ai_response(self, response):
