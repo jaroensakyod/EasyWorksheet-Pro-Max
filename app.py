@@ -558,6 +558,25 @@ if "คณิตศาสตร์" in mode_select:
         
         num_q = st.number_input("จำนวนข้อ", min_value=1, max_value=50, value=20)
         
+    # ==== DROPDOWN STRUCTURE ====
+    # Create type dropdown
+    create_options = [
+        "📝 ใบงาน / แบบฝึกหัด (Worksheet)",
+        "📚 สรุปเนื้อหา (Summary)",
+        "📋 โจทย์ข้อสอบ (Quiz)"
+    ]
+    create_type = st.selectbox("เลือกประเภทที่ต้องการ:", create_options, key="math_create_type")
+    
+    # Source dropdown
+    source_options = [
+        "🤖 AI สร้างให้ (จากหัวข้อ)",
+        "📁 จากไฟล์ (PDF/Word)",
+        "✏️ จาก Prompt (เขียนเอง)"
+    ]
+    source_type = st.selectbox("เลือกวิธีสร้าง:", source_options, key="math_source")
+    
+    # ==== AI SOURCE (TOPIC) ====
+    if "AI สร้างให้" in source_type:
         # Custom Prompt Section (for AI topics)
         if selected_type == "ai":
             with st.expander("✏️ ปรับแต่ง Prompt (ไม่บังคับ)", expanded=False):
@@ -571,33 +590,136 @@ if "คณิตศาสตร์" in mode_select:
                 st.markdown("**💡 ตัวอย่าง Prompt ที่ดี:**")
                 st.code("สร้างโจทย์คณิตศาสตร์ 10 ข้อ เรื่องการบวก สำหรับนักเรียนประถมป.2 ให้โจทย์มีความหลากหลาย เช่น สถานการณ์ในชีวิตจริง ปัญหาที่ต้องคิดวิเคราะห์ และมีเฉลยพร้อมวิธีทำ", language="text")
         
-        if st.button("🚀 สร้างใบงาน", type="primary"):
-            # Check if AI is required
-            if selected_type == "ai":
-                if not st.session_state.api_key:
-                    st.info("🔑 ต้องใช้ API Key สำหรับหัวข้อนี้ค่ะ กรอก API Key ได้ที่ด้านบนนะคะ")
-                else:
-                    # AI generation
-                    questions, answers = generator.generate_ai_worksheet(selected_topic, grade_select, num_q)
-                    pdf = generator.create_pdf(title, school_name, selected_topic, questions, answers, qr_url, uploaded_logo)
-                    word = generator.create_word_doc(title, school_name, selected_topic, questions, answers)
-                    
-                    st.session_state.generated_pdf = pdf
-                    st.session_state.generated_word = word
-                    st.session_state.generated_filename = "worksheet"
-            else:
-                # Calculation generation (no AI needed)
-                questions, answers = generator.generate_questions(op, num_q, d_min, d_max)
-                pdf = generator.create_pdf(title, school_name, selected_topic, questions, answers, qr_url, uploaded_logo)
-                word = generator.create_word_doc(title, school_name, selected_topic, questions, answers)
-                
-                st.session_state.generated_pdf = pdf
-                st.session_state.generated_word = word
-                st.session_state.generated_filename = "worksheet"
-                st.session_state.preview_questions = questions
-                st.session_state.preview_answers = answers
+        # Show num_q only if not summary
+        num_q = 10
+        if "สรุป" not in create_type:
+            num_q = st.number_input("จำนวนข้อ", min_value=1, max_value=50, value=10, key="math_num")
         
-        # Show preview and download buttons if content is generated
+        if st.button("🚀 สร้างจาก AI", type="primary", key="math_ai_gen"):
+            if selected_type == "ai" and not st.session_state.api_key:
+                st.warning("⚠️ ต้องใช้ API Key ค่ะ!")
+            else:
+                with st.spinner("🤖 AI กำลังสร้าง..."):
+                    if "สรุป" in create_type:
+                        # Generate summary
+                        summary_prompt = f"สรุปเนื้อหาคณิตศาสตร์เรื่อง {selected_topic} สำหรับนักเรียนระดับ {grade_select}"
+                        summary_result = generator.ai.generate(summary_prompt)
+                        
+                        # Create PDF and Word for summary
+                        pdf = generator.create_summary_pdf(title, school_name, "สรุปเนื้อหา", summary_result, qr_url=qr_url, logo=uploaded_logo)
+                        word = generator.create_summary_word_doc(title, school_name, "สรุปเนื้อหา", summary_result)
+                        
+                        # Preview section
+                        with st.expander("👀 ดูตัวอย่างสรุป", expanded=True):
+                            st.markdown("### 📚 สรุปเนื้อหา")
+                            st.write(summary_result)
+                        
+                        st.success("✅ สร้างสรุปสำเร็จ!")
+                        c1, c2 = st.columns(2)
+                        c1.download_button("📄 ดาวน์โหลด PDF", pdf, "summary.pdf", "application/pdf")
+                        c2.download_button("📝 ดาวน์โหลด Word", word, "summary.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                    else:
+                        # Generate worksheet/quiz
+                        if selected_type == "ai":
+                            questions, answers = generator.generate_ai_worksheet(selected_topic, grade_select, num_q)
+                        else:
+                            questions, answers = generator.generate_questions(op, num_q, d_min, d_max)
+                        
+                        pdf = generator.create_pdf(title, school_name, selected_topic, questions, answers, qr_url, uploaded_logo)
+                        word = generator.create_word_doc(title, school_name, selected_topic, questions, answers)
+                        
+                        st.session_state.generated_pdf = pdf
+                        st.session_state.generated_word = word
+                        st.session_state.generated_filename = "worksheet"
+                        st.session_state.preview_questions = questions
+                        st.session_state.preview_answers = answers
+    
+    # ==== FILE SOURCE ====
+    elif "ไฟล์" in source_type:
+        uploaded_file = st.file_uploader("📁 อัปโหลดไฟล์ (PDF หรือ Word)", type=["pdf", "docx", "doc"], key="math_file")
+        
+        if uploaded_file:
+            with st.spinner("📖 กำลังอ่านไฟล์..."):
+                file_content = generator.extract_text_from_file(uploaded_file)
+                if file_content and "Error" not in file_content:
+                    st.success(f"✅ อ่านไฟล์สำเร็จ! ({len(file_content)} ตัวอักษร)")
+        
+        num_q = 10
+        if "สรุป" not in create_type:
+            num_q = st.number_input("จำนวนข้อ", min_value=1, max_value=50, value=10, key="math_file_num")
+        
+        if st.button("🚀 สร้างจากไฟล์", type="primary", key="math_file_gen"):
+            if not uploaded_file:
+                st.warning("⚠️ กรุณาอัปโหลดไฟล์ก่อนค่ะ!")
+            else:
+                with st.spinner("🤖 AI กำลังสร้าง..."):
+                    summarized = generator.summarize_text(file_content, max_length=2000)
+                    
+                    if "สรุป" in create_type:
+                        pdf = generator.create_summary_pdf(title, school_name, "สรุปเนื้อหา", summarized, qr_url=qr_url, logo=uploaded_logo)
+                        word = generator.create_summary_word_doc(title, school_name, "สรุปเนื้อหา", summarized)
+                        
+                        with st.expander("👀 ดูตัวอย่างสรุป", expanded=True):
+                            st.markdown("### 📚 สรุปเนื้อหา")
+                            st.write(summarized)
+                        
+                        st.success("✅ สร้างสรุปสำเร็จ!")
+                        c1, c2 = st.columns(2)
+                        c1.download_button("📄 ดาวน์โหลด PDF", pdf, "summary.pdf", "application/pdf")
+                        c2.download_button("📝 ดาวน์โหลด Word", word, "summary.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                    else:
+                        questions, answers = generator.generate_quiz_from_text(summarized, num_q)
+                        
+                        pdf = generator.create_pdf(title, school_name, "Quiz from File", questions, answers, qr_url, uploaded_logo)
+                        word = generator.create_word_doc(title, school_name, "Quiz from File", questions, answers)
+                        
+                        st.session_state.generated_pdf = pdf
+                        st.session_state.generated_word = word
+                        st.session_state.generated_filename = "math_quiz"
+                        st.session_state.preview_questions = questions
+                        st.session_state.preview_answers = answers
+    
+    # ==== PROMPT SOURCE ====
+    elif "Prompt" in source_type:
+        prompt_input = st.text_area("📝 เขียนหัวข้อหรือเนื้อหาที่ต้องการ:", height=100, key="math_prompt")
+        
+        num_q = 10
+        if "สรุป" not in create_type:
+            num_q = st.number_input("จำนวนข้อ", min_value=1, max_value=50, value=10, key="math_prompt_num")
+        
+        if st.button("🚀 สร้างจาก Prompt", type="primary", key="math_prompt_gen"):
+            if not prompt_input:
+                st.warning("⚠️ กรุณาเขียนหัวข้อก่อนค่ะ!")
+            else:
+                with st.spinner("🤖 AI กำลังสร้าง..."):
+                    if "สรุป" in create_type:
+                        summary_prompt = f"สรุปเนื้อหาคณิตศาสตร์สำหรับนักเรียนระดับ {grade_select}\n\nเนื้อหา:\n{prompt_input}"
+                        summary_result = generator.ai.generate(summary_prompt)
+                        
+                        pdf = generator.create_summary_pdf(title, school_name, "สรุปเนื้อหา", summary_result, qr_url=qr_url, logo=uploaded_logo)
+                        word = generator.create_summary_word_doc(title, school_name, "สรุปเนื้อหา", summary_result)
+                        
+                        with st.expander("👀 ดูตัวอย่างสรุป", expanded=True):
+                            st.markdown("### 📚 สรุปเนื้อหา")
+                            st.write(summary_result)
+                        
+                        st.success("✅ สร้างสรุปสำเร็จ!")
+                        c1, c2 = st.columns(2)
+                        c1.download_button("📄 ดาวน์โหลด PDF", pdf, "summary.pdf", "application/pdf")
+                        c2.download_button("📝 ดาวน์โหลด Word", word, "summary.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                    else:
+                        questions, answers = generator.generate_quiz_from_text(prompt_input, num_q)
+                        
+                        pdf = generator.create_pdf(title, school_name, "Quiz from Prompt", questions, answers, qr_url, uploaded_logo)
+                        word = generator.create_word_doc(title, school_name, "Quiz from Prompt", questions, answers)
+                        
+                        st.session_state.generated_pdf = pdf
+                        st.session_state.generated_word = word
+                        st.session_state.generated_filename = "math_quiz"
+                        st.session_state.preview_questions = questions
+                        st.session_state.preview_answers = answers
+
+    # Skip the old generation code - handled above
         if st.session_state.generated_pdf is not None:
             st.success("✅ สร้างสำเร็จ!")
             
