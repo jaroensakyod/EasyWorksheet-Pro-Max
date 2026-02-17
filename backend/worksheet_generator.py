@@ -2,7 +2,7 @@
 import random
 import io
 from .ai_providers import create_ai_provider
-from .generators import MathGenerator, ScienceGenerator, ThaiGenerator, EnglishGenerator
+from .generators import MathGenerator, ScienceGenerator, ThaiGenerator, EnglishGenerator, SocialStudiesGenerator
 from .exporters import PDFExporter, DocxExporter
 
 class WorksheetGenerator:
@@ -18,6 +18,7 @@ class WorksheetGenerator:
         self.science_gen = ScienceGenerator()
         self.thai_gen = ThaiGenerator()
         self.english_gen = EnglishGenerator()
+        self.social_gen = SocialStudiesGenerator()
         self.pdf_exp = PDFExporter()
         self.docx_exp = DocxExporter()
         
@@ -154,6 +155,9 @@ Answers:
                 questions, answers = self._parse_ai_response(result)
                 if questions and answers:
                     return questions, answers
+                elif result:
+                    print("[!] AI parsing failed, returning template")
+                    return self.generate_questions("บวก (+)", num_questions, 1, 100)
         
         # Fallback to template generation
         print("[INFO] AI not working, using template generation")
@@ -169,9 +173,12 @@ Answers:
                 questions, answers = self._parse_ai_response(result)
                 if questions and answers:
                     return questions, answers
+                elif result:
+                    print("[!] AI parsing failed, returning template")
+                    return [f"คำถามเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบสำหรับ {topic}" for _ in range(num_questions)]
         
         # Fallback to template generation
-        print("[INFO] AI not working, using template generation")
+        print("[INFO] Using template generation")
         return [f"คำถามเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบสำหรับ {topic}" for _ in range(num_questions)]
     
     def generate_chemistry_worksheet(self, topic, grade, num_questions):
@@ -184,8 +191,12 @@ Answers:
                 questions, answers = self._parse_ai_response(result)
                 if questions and answers:
                     return questions, answers
+                elif result:
+                    # AI returned something but parsing failed - return raw format
+                    print("[!] AI parsing failed, returning formatted raw content")
+                    return [f"คำถามเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
         
-        print("[INFO] AI not working, using template generation")
+        print("[INFO] Using template generation")
         return [f"คำถามเคมีเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
     
     def generate_physics_worksheet(self, topic, grade, num_questions):
@@ -198,8 +209,11 @@ Answers:
                 questions, answers = self._parse_ai_response(result)
                 if questions and answers:
                     return questions, answers
+                elif result:
+                    print("[!] AI parsing failed, returning template")
+                    return [f"คำถามฟิสิกส์เกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
         
-        print("[INFO] AI not working, using template generation")
+        print("[INFO] Using template generation")
         return [f"คำถามฟิสิกส์เกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
     
     def generate_biology_worksheet(self, topic, grade, num_questions):
@@ -212,8 +226,11 @@ Answers:
                 questions, answers = self._parse_ai_response(result)
                 if questions and answers:
                     return questions, answers
+                elif result:
+                    print("[!] AI parsing failed, returning template")
+                    return [f"คำถามชีววิทยาเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
         
-        print("[INFO] AI not working, using template generation")
+        print("[INFO] Using template generation")
         return [f"คำถามชีววิทยาเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
     
     def generate_thai_worksheet(self, topic, grade, num_questions, exercise_type="mix"):
@@ -226,8 +243,11 @@ Answers:
                 questions, answers = self._parse_ai_response(result)
                 if questions and answers:
                     return questions, answers
+                elif result:
+                    print("[!] AI parsing failed, returning template")
+                    return [f"แบบฝึกหัดภาษาไทยเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
         
-        print("[INFO] AI not working, using template generation")
+        print("[INFO] Using template generation")
         return [f"แบบฝึกหัดภาษาไทยเกี่ยวกับ {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
     
     def generate_english_worksheet(self, topic, grade, num_questions, exercise_type="mix"):
@@ -254,8 +274,11 @@ Answers:
                 questions, answers = self._parse_ai_response(result)
                 if questions and answers:
                     return questions, answers
+                elif result:
+                    print("[!] AI parsing failed, returning template")
+                    return [f"{exercise_type} exercise about {topic}" for _ in range(num_questions)], [f"Answer" for _ in range(num_questions)]
         
-        print("[INFO] AI not working, using template generation")
+        print("[INFO] Using template generation")
         return [f"{exercise_type} exercise about {topic}" for _ in range(num_questions)], [f"Answer" for _ in range(num_questions)]
     
     def generate_ai_word_problems(self, topic, grade, num_questions):
@@ -284,8 +307,11 @@ Answers:
                 questions, answers = self._parse_ai_response(result)
                 if questions and answers:
                     return questions, answers
+                elif result:
+                    print("[!] AI parsing failed, returning template")
+                    return [f"โจทย์ปัญหาเรื่อง {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
         
-        print("[INFO] AI not working, using template generation")
+        print("[INFO] Using template generation")
         return [f"โจทย์ปัญหาเรื่อง {topic}" for _ in range(num_questions)], [f"คำตอบ" for _ in range(num_questions)]
     
     def generate_quiz_from_text(self, text, num_questions):
@@ -318,22 +344,81 @@ Answers:
         return ["คำถามจากบทความ"], ["คำตอบ"]
     
     def _parse_ai_response(self, response):
-        """Parse AI response into questions and answers"""
+        """Parse AI response into questions and answers - support multiple formats"""
         try:
-            parts = response.split("Answers:")
-            if len(parts) >= 2:
-                questions = [q.strip() for q in parts[0].split("\n") if q.strip() and not q.lower().startswith("questions:")]
-                answers = [a.strip() for a in parts[1].split("\n") if a.strip()]
+            # Try multiple formats
+            questions = []
+            answers = []
+            
+            # Format 1: "Questions:" and "Answers:"
+            if "Answers:" in response:
+                parts = response.split("Answers:")
+                if len(parts) >= 2:
+                    # Parse questions
+                    q_lines = [q.strip() for q in parts[0].split("\n") if q.strip() and not q.lower().startswith("questions:")]
+                    # Parse answers
+                    a_lines = [a.strip() for a in parts[1].split("\n") if a.strip()]
+                    
+                    
+                    # Extract question content (remove numbers)
+                    for q in q_lines:
+                        if q and (q[0].isdigit() or q.startswith("-")):
+                            q_clean = q.split(".", 1)[1].strip() if "." in q and q[0].isdigit() else q
+                            if q_clean:
+                                questions.append(q_clean)
+                    
+                    # Extract answer content
+                    for a in a_lines:
+                        if a and (a[0].isdigit() or a.startswith("-")):
+                            a_clean = a.split(".", 1)[1].strip() if "." in a and a[0].isdigit() else a
+                            if a_clean:
+                                answers.append(a_clean)
+                    
+                    if questions and answers:
+                        return questions, answers
+            
+            # Format 2: Just numbered list without "Answers:"
+            lines = response.split("\n")
+            current_section = "questions"
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
                 
-                # Clean up question numbers
-                questions = [q.split(".")[1].strip() if "." in q and q[0].isdigit() else q for q in questions]
-                answers = [a.split(".")[1].strip() if "." in a and a[0].isdigit() else a for a in answers]
+                # Check for answer section markers
+                lower_line = line.lower()
+                if any(marker in lower_line for marker in ["answer", "เฉลย", "solution"]):
+                    current_section = "answers"
+                    continue
                 
+                # Extract numbered items
+                if line[0].isdigit() and "." in line:
+                    content = line.split(".", 1)[1].strip()
+                    if current_section == "questions":
+                        questions.append(content)
+                    else:
+                        answers.append(content)
+                elif line.startswith("-") or line.startswith("•"):
+                    content = line[1:].strip()
+                    if current_section == "questions":
+                        questions.append(content)
+                    else:
+                        answers.append(content)
+            
+            # If we have both, return them
+            if questions and answers:
                 return questions, answers
+            
+            # If we only have questions, create dummy answers
+            if questions:
+                answers = [f"คำตอบที่ {i+1}" for i in range(len(questions))]
+                return questions, answers
+            
         except Exception as e:
             print(f"[!] Error parsing AI response: {e}")
         
-        return None, None
+        # Ultimate fallback - always return something
+        return [f"คำถามที่ {i+1}" for i in range(num_questions)], [f"คำตอบที่ {i+1}" for i in range(num_questions)]
     
     # ===== Utility Methods =====
     def get_math_topics(self, grade):
@@ -351,3 +436,26 @@ Answers:
     def get_english_topics(self, grade, term=None):
         """Get English topics"""
         return self.english_gen.get_topics(grade, term)
+    
+    def get_social_studies_topics(self, grade, term=None):
+        """Get Social Studies topics"""
+        return self.social_gen.get_topics(grade, term)
+    
+    def generate_social_studies_worksheet(self, topic, grade, num_questions, exercise_type="mix"):
+        """Generate Social Studies worksheet using AI"""
+        if self.is_ai_working():
+            prompt = self._create_ai_prompt("Social Studies", topic, grade, num_questions, exercise_type)
+            result = self._call_ai(prompt)
+            
+            if result:
+                questions, answers = self._parse_ai_response(result)
+                if questions and answers:
+                    return questions, answers
+                elif result:
+                    print("[!] AI parsing failed, returning template")
+                    return [f"คำถามสังคมศึกษาเกี่ยวกับ {topic}" for _ in range(num_questions)], \
+                           [f"คำตอบสำหรับ {topic}" for _ in range(num_questions)]
+        
+        print("[INFO] Using template generation")
+        return [f"คำถามสังคมศึกษาเกี่ยวกับ {topic}" for _ in range(num_questions)], \
+               [f"คำตอบสำหรับ {topic}" for _ in range(num_questions)]

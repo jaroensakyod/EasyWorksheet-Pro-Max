@@ -5,13 +5,27 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
 from reportlab.lib.colors import black, lightgrey, blue
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 import qrcode
+import os
+
+# Register Thai font
+FONT_DIR = os.path.dirname(__file__)
+THAI_FONT_PATH = os.path.join(FONT_DIR, "fonts", "NotoSansThai.ttf")
+
+# Register font if file exists
+if os.path.exists(THAI_FONT_PATH):
+    pdfmetrics.registerFont(TTFont('ThaiFont', THAI_FONT_PATH))
+    DEFAULT_FONT = 'ThaiFont'
+else:
+    DEFAULT_FONT = 'Helvetica'
 
 class PDFExporter:
     """Export worksheets to PDF format"""
     
     def __init__(self):
-        self.font_name = 'Helvetica'
+        self.font_name = DEFAULT_FONT
     
     def create_worksheet_pdf(self, title, school_name, topic, questions, answers, qr_url=None, uploaded_logo=None):
         """Create a PDF worksheet"""

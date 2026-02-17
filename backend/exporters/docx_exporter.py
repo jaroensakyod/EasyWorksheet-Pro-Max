@@ -26,6 +26,12 @@ class DocxExporter:
         
         doc.add_paragraph()
         
+        # Handle None or empty questions
+        if questions is None:
+            questions = ["คำถามที่ 1", "คำถามที่ 2", "คำถามที่ 3"]
+        if len(questions) == 0:
+            questions = ["คำถามที่ 1", "คำถามที่ 2", "คำถามที่ 3"]
+        
         # Questions section
         doc.add_heading("แบบฝึกหัด / Exercises", level=1)
         
@@ -36,6 +42,13 @@ class DocxExporter:
         
         # Answer key section
         doc.add_heading("เฉลย / Answer Key", level=1)
+        
+        # Handle empty or None answers
+        if answers is None:
+            answers = []
+        if len(answers) == 0:
+            # Create placeholder answers
+            answers = [f"คำตอบที่ {i+1}" for i in range(len(questions))]
         
         for i, answer in enumerate(answers, 1):
             doc.add_paragraph(f"{i}. {answer}")
