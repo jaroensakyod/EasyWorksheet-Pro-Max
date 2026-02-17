@@ -855,8 +855,26 @@ elif "วิทยาศาสตร์" in mode_select:
         science_topics_list = science_topics.get(science_grade, [])
         selected_grade_level = science_grade
     
-    # ==== DROPDOWN STRUCTURE ====
-    # Create type dropdown
+    # Topic selection with display names
+    science_topic_options = [f"{prefix} {name}" for prefix, name, _ in science_topics_list]
+    science_topic_select = st.selectbox("📖 เลือกหัวข้อ:", science_topic_options)
+    
+    # Get selected topic details
+    selected_science_topic = None
+    for prefix, name, topic_type in science_topics_list:
+        full_name = f"{prefix} {name}"
+        if full_name == science_topic_select:
+            # Remove 🌟 for backend
+            clean_name = name.replace(" 🌟", "")
+            selected_science_topic = clean_name
+            selected_science_type = topic_type
+            break
+    
+    # Show AI requirement message only once
+    st.info("📌 หัวข้อวิทยาศาสตร์ทั้งหมดต้องใช้ AI ในการสร้างแบบฝึกหัดค่ะ")
+    st.markdown("ℹ️ **หมายเหตุ:** วิทยาศาสตร์ใช้ AI ในการสร้างโจทย์และแบบฝึกหัดที่หลากหลาย")
+    
+    # ==== Create Type Dropdown ====
     create_options = [
         "📝 ใบงาน / แบบฝึกหัด (Worksheet)",
         "📚 สรุปเนื้อหา (Summary)",
@@ -864,7 +882,7 @@ elif "วิทยาศาสตร์" in mode_select:
     ]
     create_type = st.selectbox("เลือกประเภทที่ต้องการ:", create_options, key="science_create_type")
     
-    # Source dropdown
+    # ==== Source Dropdown ====
     source_options = [
         "🤖 AI สร้างให้ (จากหัวข้อ)",
         "📁 จากไฟล์ (PDF/Word)",
@@ -872,28 +890,15 @@ elif "วิทยาศาสตร์" in mode_select:
     ]
     source_type = st.selectbox("เลือกวิธีสร้าง:", source_options, key="science_source")
     
+    # ==== Handle Source Types ====
+    
     # ==== AI SOURCE (TOPIC) ====
     if "AI สร้างให้" in source_type:
-        # Topic selection
-        science_topic_options = [f"{prefix} {name}" for prefix, name, _ in science_topics_list]
-        science_topic_select = st.selectbox("📖 เลือกหัวข้อ:", science_topic_options, key="science_topic")
-        
-        # Get selected topic details
-        selected_science_topic = None
-        for prefix, name, topic_type in science_topics_list:
-            full_name = f"{prefix} {name}"
-            if full_name == science_topic_select:
-                clean_name = name.replace(" 🌟", "")
-                selected_science_topic = clean_name
-                selected_science_type = topic_type
-                break
-        
         # Show num_q only if not summary
         num_q = 10
         if "สรุป" not in create_type:
             num_q = st.number_input("จำนวนข้อ", min_value=1, max_value=50, value=10, key="science_num")
         
-        # Generate button
         if st.button("🚀 สร้างจาก AI", type="primary", key="science_ai_gen"):
             if not st.session_state.api_key:
                 st.warning("⚠️ ต้องใช้ API Key ค่ะ!")
@@ -904,9 +909,11 @@ elif "วิทยาศาสตร์" in mode_select:
                         summary_prompt = f"สรุปเนื้อหาวิทยาศาสตร์เรื่อง {selected_science_topic} สำหรับนักเรียนระดับ {science_grade}"
                         summary_result = generator.ai.generate(summary_prompt)
                         
+                        # Create PDF and Word for summary
                         pdf = generator.create_summary_pdf(title, school_name, "สรุปเนื้อหา", summary_result, qr_url=qr_url, logo=uploaded_logo)
                         word = generator.create_summary_word_doc(title, school_name, "สรุปเนื้อหา", summary_result)
                         
+                        # Preview section
                         with st.expander("👀 ดูตัวอย่างสรุป", expanded=True):
                             st.markdown("### 📚 สรุปเนื้อหา")
                             st.write(summary_result)
@@ -918,18 +925,11 @@ elif "วิทยาศาสตร์" in mode_select:
                     else:
                         # Generate worksheet/quiz
                         grade_context = {
-                            "ป.1": "Grade 1 (Thailand IPST Science Curriculum)",
-                            "ป.2": "Grade 2 (Thailand IPST Science Curriculum)",
-                            "ป.3": "Grade 3 (Thailand IPST Science Curriculum)",
-                            "ป.4": "Grade 4 (Thailand IPST Science Curriculum)",
-                            "ป.5": "Grade 5 (Thailand IPST Science Curriculum)",
-                            "ป.6": "Grade 6 (Thailand IPST Science Curriculum)",
-                            "ม.1": "Grade 7 / Matthayom 1 (Thailand IPST Science Curriculum)",
-                            "ม.2": "Grade 8 / Matthayom 2 (Thailand IPST Science Curriculum)",
-                            "ม.3": "Grade 9 / Matthayom 3 (Thailand IPST Science Curriculum)",
+                            "ป.1": "Grade 1", "ป.2": "Grade 2", "ป.3": "Grade 3",
+                            "ป.4": "Grade 4", "ป.5": "Grade 5", "ป.6": "Grade 6",
+                            "ม.1": "Grade 7", "ม.2": "Grade 8", "ม.3": "Grade 9",
                         }
                         
-                        # Generate based on grade/subject
                         if science_grade in ["ม.4", "ม.5", "ม.6"]:
                             if subject_key == "เคมี":
                                 questions, answers = generator.generate_chemistry_worksheet(selected_science_topic, science_grade, num_q)
@@ -1035,9 +1035,7 @@ elif "วิทยาศาสตร์" in mode_select:
                         st.session_state.generated_filename = "science_quiz"
                         st.session_state.preview_questions = questions
                         st.session_state.preview_answers = answers
-    
-    # Show preview for summary (non-generated)
-    # handled in preview section below# Show preview and download buttons if content is generated
+    # Show preview and download buttons if content is generated
     if st.session_state.generated_pdf is not None and st.session_state.get("generated_filename") == "science_worksheet":
         st.success("✅ สร้างใบงานวิทยาศาสตร์สำเร็จ!")
         
@@ -1186,41 +1184,27 @@ elif "ภาษาไทย" in mode_select:
         },
     }
     
-    # ==== DROPDOWN STRUCTURE ====
-    # Create type dropdown
-    create_options = [
-        "📝 ใบงาน / แบบฝึกหัด (Worksheet)",
-        "📚 สรุปเนื้อหา (Summary)",
-        "📋 โจทย์ข้อสอบ (Quiz)"
-    ]
-    create_type = st.selectbox("เลือกประเภทที่ต้องการ:", create_options, key="thai_create_type")
-    
-    # Source dropdown
-    source_options = [
-        "🤖 AI สร้างให้ (จากหัวข้อ)",
-        "📁 จากไฟล์ (PDF/Word)",
-        "✏️ จาก Prompt (เขียนเอง)"
-    ]
-    source_type = st.selectbox("เลือกวิธีสร้าง:", source_options, key="thai_source")
-    
     # Grade Selection
     thai_grade_options = ["ป.1", "ป.2", "ป.3", "ป.4", "ป.5", "ป.6", "ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6"]
     thai_grade_select = st.selectbox("📚 เลือกระดับชั้น:", thai_grade_options)
     
     # Check if grade is ม.1-6 (has terms)
     if thai_grade_select in ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6"]:
+        # Select term first
         thai_term_options = list(thai_topics[thai_grade_select].keys())
         thai_term_select = st.selectbox("📅 เลือกเทอม:", thai_term_options)
         thai_topics_list = thai_topics[thai_grade_select][thai_term_select]
         selected_thai_grade = thai_grade_select
     else:
+        # Primary school grades
         thai_topics_list = thai_topics.get(thai_grade_select, [])
         selected_thai_grade = thai_grade_select
     
-    # Topic selection
+    # Topic selection with display names
     thai_topic_options = [f"{prefix} {name}" for prefix, name, _ in thai_topics_list]
     thai_topic_select = st.selectbox("📖 เลือกหัวข้อ:", thai_topic_options)
     
+    # Get selected topic details
     selected_thai_topic = None
     for prefix, name, topic_type in thai_topics_list:
         full_name = f"{prefix} {name}"
@@ -1228,140 +1212,35 @@ elif "ภาษาไทย" in mode_select:
             selected_thai_topic = name
             break
     
-    # ==== AI SOURCE ====
-    if "AI สร้างให้" in source_type:
-        st.info("📌 หัวข้อภาษาไทยใช้ AI ในการสร้างแบบฝึกหัดค่ะ")
-        
-        exercise_types = [
-            "ทั้งหมด (ผสมผสาน)",
-            "การเขียน (Writing Exercises)",
-            "การอ่าน (Reading Comprehension)",
-            "หลักภาษา (Grammar Exercises)",
-            "คำศัพท์ (Vocabulary)",
-            "วรรณคดี (Literature)"
-        ]
-        exercise_type = st.selectbox("📝 เลือกประเภทแบบฝึกหัด:", exercise_types)
-        
-        num_q = 10
-        if "สรุป" not in create_type:
-            num_q = st.number_input("จำนวนข้อ", min_value=1, max_value=50, value=10)
-        
-        if st.button("🚀 สร้างจาก AI", type="primary", key="thai_ai_gen"):
-            if not st.session_state.api_key:
-                st.warning("⚠️ ต้องใช้ API Key ค่ะ!")
-            else:
-                with st.spinner("🤖 AI กำลังสร้าง..."):
-                    if "สรุป" in create_type:
-                        summary_prompt = f"สรุปเนื้อหาภาษาไทยเรื่อง {selected_thai_topic} สำหรับนักเรียนระดับ {thai_grade_select}"
-                        summary_result = generator.ai.generate(summary_prompt)
-                        
-                        pdf = generator.create_summary_pdf(title, school_name, "สรุปเนื้อหา", summary_result, qr_url=qr_url, logo=uploaded_logo)
-                        word = generator.create_summary_word_doc(title, school_name, "สรุปเนื้อหา", summary_result)
-                        
-                        with st.expander("👀 ดูตัวอย่างสรุป", expanded=True):
-                            st.markdown("### 📚 สรุปเนื้อหา")
-                            st.write(summary_result)
-                        
-                        st.success("✅ สร้างสรุปสำเร็จ!")
-                        c1, c2 = st.columns(2)
-                        c1.download_button("📄 ดาวน์โหลด PDF", pdf, "summary.pdf", "application/pdf")
-                        c2.download_button("📝 ดาวน์โหลด Word", word, "summary.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-                    else:
-                        questions, answers = generator.generate_thai_worksheet(selected_thai_topic, thai_grade_select, num_q, "mix")
-                        
-                        pdf = generator.create_pdf(title, school_name, selected_thai_topic, questions, answers, qr_url, uploaded_logo)
-                        word = generator.create_word_doc(title, school_name, selected_thai_topic, questions, answers)
-                        
-                        st.session_state.generated_pdf = pdf
-                        st.session_state.generated_word = word
-                        st.session_state.generated_filename = "thai_worksheet"
-                        st.session_state.preview_questions = questions
-                        st.session_state.preview_answers = answers
+    # Show AI requirement message only once
+    st.info("📌 หัวข้อภาษาไทยทั้งหมดต้องใช้ AI ในการสร้างแบบฝึกหัดค่ะ")
     
-    # ==== FILE SOURCE ====
-    elif "ไฟล์" in source_type:
-        uploaded_file = st.file_uploader("📁 อัปโหลดไฟล์ (PDF หรือ Word)", type=["pdf", "docx", "doc"], key="thai_file")
-        
-        if uploaded_file:
-            with st.spinner("📖 กำลังอ่านไฟล์..."):
-                file_content = generator.extract_text_from_file(uploaded_file)
-                if file_content and "Error" not in file_content:
-                    st.success(f"✅ อ่านไฟล์สำเร็จ! ({len(file_content)} ตัวอักษร)")
-        
-        num_q = 10
-        if "สรุป" not in create_type:
-            num_q = st.number_input("จำนวนข้อ", min_value=1, max_value=50, value=10, key="thai_file_num")
-        
-        if st.button("🚀 สร้างจากไฟล์", type="primary", key="thai_file_gen"):
-            if not uploaded_file:
-                st.warning("⚠️ กรุณาอัปโหลดไฟล์ก่อนค่ะ!")
-            else:
-                with st.spinner("🤖 AI กำลังสร้าง..."):
-                    summarized = generator.summarize_text(file_content, max_length=2000)
-                    
-                    if "สรุป" in create_type:
-                        pdf = generator.create_summary_pdf(title, school_name, "สรุปเนื้อหา", summarized, qr_url=qr_url, logo=uploaded_logo)
-                        word = generator.create_summary_word_doc(title, school_name, "สรุปเนื้อหา", summarized)
-                        
-                        with st.expander("👀 ดูตัวอย่างสรุป", expanded=True):
-                            st.markdown("### 📚 สรุปเนื้อหา")
-                            st.write(summarized)
-                        
-                        st.success("✅ สร้างสรุปสำเร็จ!")
-                        c1, c2 = st.columns(2)
-                        c1.download_button("📄 ดาวน์โหลด PDF", pdf, "summary.pdf", "application/pdf")
-                        c2.download_button("📝 ดาวน์โหลด Word", word, "summary.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-                    else:
-                        questions, answers = generator.generate_quiz_from_text(summarized, num_q)
-                        
-                        pdf = generator.create_pdf(title, school_name, "Quiz from File", questions, answers, qr_url, uploaded_logo)
-                        word = generator.create_word_doc(title, school_name, "Quiz from File", questions, answers)
-                        
-                        st.session_state.generated_pdf = pdf
-                        st.session_state.generated_word = word
-                        st.session_state.generated_filename = "thai_quiz"
-                        st.session_state.preview_questions = questions
-                        st.session_state.preview_answers = answers
+    # Exercise type selector
+    exercise_types = [
+        "ทั้งหมด (ผสมผสาน)",
+        "การเขียน (Writing Exercises)",
+        "การอ่าน (Reading Comprehension)",
+        "หลักภาษา (Grammar Exercises)",
+        "คำศัพท์ (Vocabulary)",
+        "วรรณคดี (Literature)"
+    ]
+    exercise_type = st.selectbox("📝 เลือกประเภทแบบฝึกหัด:", exercise_types)
     
-    # ==== PROMPT SOURCE ====
-    elif "Prompt" in source_type:
-        prompt_input = st.text_area("📝 เขียนหัวข้อหรือเนื้อหาที่ต้องการ:", height=100, key="thai_prompt")
+    num_q = st.number_input("จำนวนข้อ", min_value=1, max_value=50, value=20)
+    
+    # Custom Prompt Section
+    with st.expander("✏️ ปรับแต่ง Prompt (ไม่บังคับ)", expanded=False):
+        thai_prompt = st.text_area(
+            "Prompt สำหรับ AI (ถ้าเว้นว่างจะใช้ค่าเริ่มต้น)",
+            value="",
+            height=100,
+            help="ปรับแต่ง prompt เพื่อให้ได้ผลลัพธ์ตามต้องการ"
+        )
         
-        num_q = 10
-        if "สรุป" not in create_type:
-            num_q = st.number_input("จำนวนข้อ", min_value=1, max_value=50, value=10, key="thai_prompt_num")
-        
-        if st.button("🚀 สร้างจาก Prompt", type="primary", key="thai_prompt_gen"):
-            if not prompt_input:
-                st.warning("⚠️ กรุณาเขียนหัวข้อก่อนค่ะ!")
-            else:
-                with st.spinner("🤖 AI กำลังสร้าง..."):
-                    if "สรุป" in create_type:
-                        summary_prompt = f"สรุปเนื้อหาภาษาไทยสำหรับนักเรียน\n\nเนื้อหา:\n{prompt_input}"
-                        summary_result = generator.ai.generate(summary_prompt)
-                        
-                        pdf = generator.create_summary_pdf(title, school_name, "สรุปเนื้อหา", summary_result, qr_url=qr_url, logo=uploaded_logo)
-                        word = generator.create_summary_word_doc(title, school_name, "สรุปเนื้อหา", summary_result)
-                        
-                        with st.expander("👀 ดูตัวอย่างสรุป", expanded=True):
-                            st.markdown("### 📚 สรุปเนื้อหา")
-                            st.write(summary_result)
-                        
-                        st.success("✅ สร้างสรุปสำเร็จ!")
-                        c1, c2 = st.columns(2)
-                        c1.download_button("📄 ดาวน์โหลด PDF", pdf, "summary.pdf", "application/pdf")
-                        c2.download_button("📝 ดาวน์โหลด Word", word, "summary.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-                    else:
-                        questions, answers = generator.generate_quiz_from_text(prompt_input, num_q)
-                        
-                        pdf = generator.create_pdf(title, school_name, "Quiz from Prompt", questions, answers, qr_url, uploaded_logo)
-                        word = generator.create_word_doc(title, school_name, "Quiz from Prompt", questions, answers)
-                        
-                        st.session_state.generated_pdf = pdf
-                        st.session_state.generated_word = word
-                        st.session_state.generated_filename = "thai_quiz"
-                        st.session_state.preview_questions = questions
-                        st.session_state.preview_answers = answers
+        st.markdown("**💡 ตัวอย่าง Prompt ที่ดี:**")
+        st.code("สร้างแบบฝึกหัดภาษาไทย 10 ข้อ เรื่องคำนาม สำหรับนักเรียนป.2 ให้มีคำถามหลากหลายรูปแบบ ทั้งเติมคำในช่องว่าง จับคู่คำนามกับคำอธิบาย และแบบถูก-ผิด", language="text")
+    
+    if st.button("🚀 สร้างใบงานภาษาไทย", type="primary"):
         if not st.session_state.api_key:
             st.info("🔑 ต้องใช้ API Key สำหรับหัวข้อภาษาไทยค่ะ กรอก API Key ได้ที่ด้านบนนะคะ")
         else:
@@ -1423,21 +1302,6 @@ elif "ภาษาไทย" in mode_select:
 
 elif "ภาษาอังกฤษ" in mode_select:
     st.subheader("🌏 สร้างใบงานภาษาอังกฤษ (English Language)")
-    
-    # ==== DROPDOWN STRUCTURE ====
-    create_options = [
-        "📝 ใบงาน / แบบฝึกหัด (Worksheet)",
-        "📚 สรุปเนื้อหา (Summary)",
-        "📋 โจทย์ข้อสอบ (Quiz)"
-    ]
-    create_type = st.selectbox("เลือกประเภทที่ต้องการ:", create_options, key="english_create_type")
-    
-    source_options = [
-        "🤖 AI สร้างให้ (จากหัวข้อ)",
-        "📁 จากไฟล์ (PDF/Word)",
-        "✏️ จาก Prompt (เขียนเอง)"
-    ]
-    source_type = st.selectbox("เลือกวิธีสร้าง:", source_options, key="english_source")
     
     # English Language Curriculum Data
     english_topics = {
@@ -1724,21 +1588,6 @@ elif "ภาษาอังกฤษ" in mode_select:
 
 elif "สังคมศึกษา" in mode_select:
     st.subheader("📖 สร้างใบงานสังคมศึกษา (ตามหลักสูตร สสวท.)")
-    
-    # ==== DROPDOWN STRUCTURE ====
-    create_options = [
-        "📝 ใบงาน / แบบฝึกหัด (Worksheet)",
-        "📚 สรุปเนื้อหา (Summary)",
-        "📋 โจทย์ข้อสอบ (Quiz)"
-    ]
-    create_type = st.selectbox("เลือกประเภทที่ต้องการ:", create_options, key="social_create_type")
-    
-    source_options = [
-        "🤖 AI สร้างให้ (จากหัวข้อ)",
-        "📁 จากไฟล์ (PDF/Word)",
-        "✏️ จาก Prompt (เขียนเอง)"
-    ]
-    source_type = st.selectbox("เลือกวิธีสร้าง:", source_options, key="social_source")
     
     # Social Studies Curriculum Data
     social_studies_topics = {
