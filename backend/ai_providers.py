@@ -1,5 +1,5 @@
 # ai_providers.py - AI Provider integrations (Google, Groq, OpenRouter)
-import google.generativeai as genai
+from google import genai
 
 class GoogleProvider:
     def __init__(self, api_key):
@@ -11,32 +11,32 @@ class GoogleProvider:
     
     def _init_model(self):
         try:
-            genai.configure(api_key=self.api_key)
+            client = genai.Client(api_key=self.api_key)
             model_priority = [
                 'gemini-1.5-flash',
                 'gemini-1.5-pro',
                 'gemini-2.0-flash-exp',
             ]
             
-            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            available_models = [m.name for m in client.models.list() if 'generateContent' in m.supported_generation_methods]
             
             for model_name in model_priority:
                 for available in available_models:
                     if model_name in available:
-                        self.model = genai.GenerativeModel(available)
+                        self.model = available
                         self.model_name = available
                         self.is_working = True
                         return
             
             for m in available_models:
                 if 'flash' in m.lower():
-                    self.model = genai.GenerativeModel(m)
+                    self.model = m
                     self.model_name = m
                     self.is_working = True
                     return
             
             if available_models:
-                self.model = genai.GenerativeModel(available_models[0])
+                self.model = available_models[0]
                 self.model_name = available_models[0]
                 self.is_working = True
         except Exception as e:
@@ -51,7 +51,9 @@ class GoogleProvider:
     def generate(self, prompt):
         if self.model and self.is_working:
             try:
-                return self.model.generate_content(prompt).text
+                client = genai.Client(api_key=self.api_key)
+                response = client.models.generate_content(model=self.model, contents=prompt)
+                return response.text
             except Exception as e:
                 print(f"[!] Google API error: {e}")
                 self.is_working = False

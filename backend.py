@@ -12,7 +12,7 @@ from reportlab.lib.colors import black, lightgrey, blue
 import io
 import qrcode
 from reportlab.lib.utils import ImageReader
-import google.generativeai as genai
+from google import genai
 import os
 from docx import Document
 from docx.shared import Pt, Inches, Cm
@@ -40,47 +40,47 @@ class WorksheetGenerator:
         self.model_name = None
         self.provider = provider
         self.client = None  # For Groq/OpenRouter
-        
+
         if ai_api_key and provider == "Google Gemini":
             try:
-                genai.configure(api_key=ai_api_key)
-                
+                client = genai.Client(api_key=ai_api_key)
+
                 # Smart Model Detection (Free Tier Compatible Models)
                 model_priority = [
                     'gemini-1.5-flash',      # Best for Free Tier - fast & quota-friendly
                     'gemini-1.5-pro',       # Free Tier available
                     'gemini-2.0-flash-exp', # New model (if available)
                 ]
-                
+
                 try:
                     # List available models
-                    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                    available_models = [m.name for m in client.models.list() if 'generateContent' in m.supported_generation_methods]
                     print(f"Available models: {available_models}")
-                    
+
                     # Find first matching model from priority list
                     for model_name in model_priority:
                         for available in available_models:
                             if model_name in available:
-                                self.model = genai.GenerativeModel(available)
+                                self.client = client
                                 self.model_name = available
                                 print(f"[OK] Using AI Model: {available}")
                                 break
-                        if self.model:
+                        if self.client:
                             break
-                    
+
                     # If still no model, use first available (fallback)
-                    if not self.model and available_models:
+                    if not self.client and available_models:
                         # Prefer flash model if available
                         for m in available_models:
                             if 'flash' in m.lower():
-                                self.model = genai.GenerativeModel(m)
+                                self.client = client
                                 self.model_name = m
                                 print(f"[OK] Using Flash Model (fallback): {m}")
                                 break
                         
                         # If no flash found, use first available
-                        if not self.model:
-                            self.model = genai.GenerativeModel(available_models[0])
+                        if not self.client:
+                            self.client = client
                             self.model_name = available_models[0]
                             print(f"[OK] Using first available model: {available_models[0]}")
                             
@@ -88,17 +88,17 @@ class WorksheetGenerator:
                     print(f"[!] Model detection failed: {e}")
                     # Last resort fallback - try flash explicitly
                     try:
-                        self.model = genai.GenerativeModel('gemini-1.5-flash')
+                        self.client = client
                         self.model_name = 'gemini-1.5-flash'
                         print(f"[OK] Using Flash as fallback")
                     except Exception as fallback_error:
                         print(f"[!] Fallback also failed: {fallback_error}")
-                        self.model = None
-                        
+                        self.client = None
+                            
             except Exception as e:
                 print(f"[!] Google API configuration failed: {e}")
-                self.model = None
-                
+                self.client = None
+
         elif ai_api_key and provider == "Groq":
             if GROQ_AVAILABLE:
                 try:
@@ -111,7 +111,7 @@ class WorksheetGenerator:
                     self.client = None
             else:
                 print("[!] Groq library not installed. Install with: pip install groq")
-                
+
         elif ai_api_key and provider == "OpenRouter":
             if OPENROUTER_AVAILABLE:
                 try:
@@ -143,13 +143,13 @@ class WorksheetGenerator:
 
     def _generate_content(self, prompt):
         """Generate content using the appropriate provider."""
-        if self.provider == "Google Gemini" and self.model:
+        if self.provider == "Google Gemini" and self.client:
             try:
-                response = self.model.generate_content(prompt)
+                response = self.client.models.generate_content(model=self.model_name, contents=prompt)
                 return response.text
             except Exception as e:
                 raise Exception(f"Google Gemini API error: {e}")
-                
+
         elif self.provider == "Groq" and self.client:
             try:
                 # Groq uses Llama models - fast and efficient
@@ -164,7 +164,7 @@ class WorksheetGenerator:
                 return chat_completion.choices[0].message.content
             except Exception as e:
                 raise Exception(f"Groq API error: {e}")
-                
+
         elif self.provider == "OpenRouter" and self.client:
             try:
                 chat_completion = self.client.chat.completions.create(
@@ -199,9 +199,9 @@ class WorksheetGenerator:
 
     def generate_ai_worksheet(self, topic, grade_level, num_questions=10):
         """Generates worksheets for non-calculation topics using AI."""
-        if not self.model and not self.client:
+        if not self.client:
             return ["Error: No API Key configured"], ["Please add API Key"]
-        
+
         # Create detailed prompts for each topic
         prompts = {
             # ป.1
@@ -210,7 +210,7 @@ class WorksheetGenerator:
             "การตวง": f"Create {num_questions} volume measurement exercises for Grade 1 students. Include: measuring liquids, comparing volumes, using standard units.",
             "รูปเรขาคณิต": f"Create {num_questions} geometry exercises for Grade 1 students. Include: identifying shapes (circle, square, triangle, rectangle), drawing shapes, counting sides and corners.",
             "เวลา": f"Create {num_questions} time exercises for Grade 1 students. Include: reading analog clocks (o'clock), drawing clock hands, sequencing daily activities.",
-            
+
             # ป.2
             "การวัดความยาว": f"Create {num_questions} length measurement exercises for Grade 2 students. Include: measuring in cm and m, comparing lengths, solving word problems.",
             "การชั่ง": f"Create {num_questions} weighing exercises for Grade 2 students. Include: reading scales in kg, comparing weights, simple word problems.",
@@ -218,7 +218,7 @@ class WorksheetGenerator:
             "เงิน": f"Create {num_questions} money exercises for Grade 2 students. Include: counting Thai baht, making change, money word problems.",
             "การตวง": f"Create {num_questions} volume measurement exercises for Grade 2 students. Include: measuring in liters, comparing volumes, word problems.",
             "รูปเรขาคณิต": f"Create {num_questions} geometry exercises for Grade 2 students. Include: identifying 2D shapes, counting sides and corners, drawing shapes.",
-            
+
             # ป.3
             "แผนภูมิรูปภาพและแผนภูมิแท่ง": f"Create {num_questions} pictograph and bar chart exercises for Grade 3 students. Include: reading data, interpreting charts, creating charts from data.",
             "การวัดความยาว": f"Create {num_questions} length measurement exercises for Grade 3 students. Include: measuring in mm, cm, m, km, converting units, word problems.",
@@ -227,7 +227,7 @@ class WorksheetGenerator:
             "เงินและการบันทึกรายรับรายจ่าย": f"Create {num_questions} money and record-keeping exercises for Grade 3 students. Include: calculating totals, making change, income-expense records.",
             "จุด เส้นตรง รังสี ส่วนของเส้นตรง มุม": f"Create {num_questions} geometry exercises about points, lines, rays, line segments and angles for Grade 3. Include: identifying, naming, drawing.",
             "รูปเรขาคณิต": f"Create {num_questions} geometry exercises for Grade 3 students. Include: identifying 2D and 3D shapes, counting edges, faces, vertices.",
-            
+
             # ป.4
             "เรขาคณิต": f"Create {num_questions} geometry exercises for Grade 4 students. Include: identifying 2D shapes, properties of shapes, perimeter, area basics.",
             "แผนภูมิรูปภาพ แผนภูมิแท่ง และตาราง": f"Create {num_questions} data representation exercises (pictographs, bar charts, tables) for Grade 4 students.",
@@ -235,7 +235,7 @@ class WorksheetGenerator:
             "พื้นที่": f"Create {num_questions} area exercises for Grade 4 students. Include: finding area by counting squares, area of rectangle, word problems.",
             "เงิน": f"Create {num_questions} money exercises for Grade 4 students. Include: complex transactions, discounts, savings, word problems.",
             "เวลา": f"Create {num_questions} time exercises for Grade 4 students. Include: 24-hour clock, time intervals, calendar problems.",
-            
+
             # ป.5
             "มุม": f"Create {num_questions} angle exercises for Grade 5 students. Include: measuring angles with protractor, drawing angles, types of angles (acute, right, obtuse, straight).",
             "เส้นขนาน": f"Create {num_questions} parallel lines exercises for Grade 5 students. Include: identifying parallel lines, properties of parallel lines, drawing parallel lines.",
@@ -245,7 +245,7 @@ class WorksheetGenerator:
             "รูปสามเหลี่ยม": f"Create {num_questions} triangle exercises for Grade 5 students. Include: types of triangles, properties, drawing, area of triangle basics.",
             "รูปวงกลม": f"Create {num_questions} circle exercises for Grade 5 students. Include: identifying parts of circle, radius, diameter, circumference basics.",
             "รูปเรขาคณิตสามมิติและปริมาตรของทรงสี่เหลี่ยมมุมฉาก": f"Create {num_questions} 3D geometry and volume exercises for Grade 5. Include: cube, rectangular prism, volume calculation.",
-            
+
             # ป.6
             "ตัวประกอบของจำนวนนับ": f"Create {num_questions} factors and multiples exercises for Grade 6 students. Include: finding factors, prime factors, greatest common factor, least common multiple.",
             "เส้นขนาน": f"Create {num_questions} parallel lines exercises for Grade 6 students. Include: properties of parallel lines, angle relationships, transversal.",
@@ -257,10 +257,10 @@ class WorksheetGenerator:
             "รูปเรขาคณิตสามมิติและปริมาตรของทรงสี่เหลี่ยมมุมฉาก": f"Create {num_questions} 3D geometry and volume exercises for Grade 6. Include: surface area, volume of various prisms.",
             "สถิติและความน่าจะเป็นเบื้องต้น": f"Create {num_questions} statistics and probability exercises for Grade 6. Include: data collection, graphs, probability experiments.",
         }
-        
+
         # Get prompt for topic or use default
         prompt = prompts.get(topic, f"Create {num_questions} math exercises about '{topic}' for {grade_level} students.")
-        
+
         # Add grade context
         grade_context = {
             "ป.1": "Grade 1 (Thailand IPST Curriculum)",
@@ -270,20 +270,20 @@ class WorksheetGenerator:
             "ป.5": "Grade 5 (Thailand IPST Curriculum)",
             "ป.6": "Grade 6 (Thailand IPST Curriculum)",
         }
-        
+
         full_prompt = f"""
         {prompt}
-        
+
         Target Grade: {grade_context.get(grade_level, grade_level)}
         Curriculum: IPST (Thailand Institute of Scientific and Technological Research)
-        
+
         Output format:
         Q: [Question]
         A: [Answer]
-        
+
         Create exactly {num_questions} questions.
         """
-        
+
         try:
             resp_text = self._generate_content(full_prompt)
             qs, ans = [], []
@@ -296,16 +296,16 @@ class WorksheetGenerator:
 
     def generate_quiz_from_text(self, text, num_questions=5, grade="General"):
         """Generates a multiple choice quiz from text using AI."""
-        if not self.model and not self.client:
+        if not self.client:
             return ["Error: No API Key configured"], ["Please add API Key"]
-        
+
         # Limit text to avoid token limits (approx first 2000 chars)
-        context_text = text[:3000] 
-        
+        context_text = text[:3000]
+
         prompt = f"""
         Create a {num_questions}-question multiple choice quiz (in Thai) based on this text:
         "{context_text}"
-        
+
         Target audience: {grade}
         Format exactly like this for each question:
         Q: [Question]
@@ -321,7 +321,7 @@ class WorksheetGenerator:
             # We will split by "Q:"
             questions = []
             answers = [] # We can store correct answers separately if needed
-            
+
             raw_qs = content.split("Q:")
             for raw in raw_qs:
                 if not raw.strip(): continue
@@ -332,12 +332,12 @@ class WorksheetGenerator:
                 for line in lines[1:]:
                     if line.startswith("Ans:"): correct = line.replace("Ans:", "").strip()
                     elif line.strip(): options.append(line.strip())
-                
+
                 if q_text:
                     full_q = q_text + "\n" + "\n".join(options)
                     questions.append(full_q)
                     answers.append(correct)
-            
+
             return questions, answers
         except Exception as e:
             return [f"AI Error: {str(e)}"], ["Error"]
@@ -371,7 +371,7 @@ class WorksheetGenerator:
 
     def generate_ai_word_problems(self, topic, grade_level, num_questions):
         """Generates math word problems using AI."""
-        if not self.model and not self.client:
+        if not self.client:
             return ["No API Key configured"], ["Please add API Key"]
         prompt = f"Generate {num_questions} math word problems (Thai) for {grade_level} about '{topic}'. Output format:\nQ: [Question]\nA: [Answer]"
         try:
@@ -386,9 +386,9 @@ class WorksheetGenerator:
 
     def generate_science_worksheet(self, topic, grade_level, num_questions=10):
         """Generates science worksheets using AI based on IPST curriculum."""
-        if not self.model and not self.client:
+        if not self.client:
             return ["Error: No API Key configured"], ["Please add API Key"]
-        
+
         # Detailed prompts for science topics
         science_prompts = {
             # ป.1
@@ -397,14 +397,14 @@ class WorksheetGenerator:
             "สัตว์รอบตัวเรา (สัตว์หลากหลายชนิด, การดูแลสัตว์)": f"Create {num_questions} science exercises about animals for Grade 1. Include: types of animals, animal characteristics, caring for pets.",
             "ดวงดาวและท้องฟ้า (ดวงอาทิตย์, ดวงจันทร์, ดวงดาว)": f"Create {num_questions} science exercises about the sun, moon, and stars for Grade 1. Include: basic astronomy concepts, observations of the sky.",
             "สภาพอากาศ (หนาว, ร้อน, ฝน, ลม)": f"Create {num_questions} science exercises about weather (cold, hot, rain, wind) for Grade 1. Include: weather observation, types of weather.",
-            
+
             # ป.2
             "สิ่งมีชีวิตกับการดำรงชีวิต (อาหาร, ที่อยู่อาศัย, การสืบพันธุ์)": f"Create {num_questions} science exercises about how living things survive for Grade 2. Include: food, shelter, reproduction of plants and animals.",
             "สิ่งแวดล้อม (แสง, เสียง, ความร้อน)": f"Create {num_questions} science exercises about the environment for Grade 2. Include: light, sound, heat - basic properties and sources.",
             "น้ำและอากาศ (สถานะของน้ำ, การเกิดฝน)": f"Create {num_questions} science exercises about water and air for Grade 2. Include: states of water, water cycle, rain formation.",
             "ดิน (องค์ประกอบของดิน, ชนิดของดิน)": f"Create {num_questions} science exercises about soil for Grade 2. Include: components of soil, types of soil, soil uses.",
             "ท้องฟ้าและการพยากรณ์อากาศ (การสังเกตเมฆ, การพยากรณ์อากาศ)": f"Create {num_questions} science exercises about sky observation and weather prediction for Grade 2. Include: cloud observation, simple weather forecasting.",
-            
+
             # ป.3
             "ร่างกายของเรา (ระบบย่อยอาหาร, ระบบหายใจ)": f"Create {num_questions} science exercises about the human body for Grade 3. Include: digestive system, respiratory system, basic anatomy.",
             "พืชกับการดำรงชีวิต (การสังเคราะห์ด้วยแสง, การขยายพันธุ์)": f"Create {num_questions} science exercises about plants for Grade 3. Include: photosynthesis, plant reproduction, plant life cycle.",
@@ -412,7 +412,7 @@ class WorksheetGenerator:
             "วัสดุรอบตัว (โลหะ, ไม้, พลาสติก)": f"Create {num_questions} science exercises about materials around us for Grade 3. Include: properties of metal, wood, plastic, uses of materials.",
             "แรงและการเคลื่อนที่ (แรงผลัก, แรงดึง, แรงเสียดทาน)": f"Create {num_questions} science exercises about forces and motion for Grade 3. Include: push/pull forces, friction, basic motion concepts.",
             "พลังงาน (ความร้อน, แสง, เสียง)": f"Create {num_questions} science exercises about energy for Grade 3. Include: heat, light, sound - sources and properties.",
-            
+
             # ป.4
             "ระบบร่างกาย (ระบบหมุนเวียนเลือด, ระบบขับถ่าย)": f"Create {num_questions} science exercises about human body systems for Grade 4. Include: circulatory system, excretory system.",
             "พืชที่หลากหลาย (การจำแนกพืช, การสืบพันธุ์พืช)": f"Create {num_questions} science exercises about plant diversity for Grade 4. Include: plant classification, plant reproduction methods.",
@@ -420,7 +420,7 @@ class WorksheetGenerator:
             "สสาร (สถานะ, การเปลี่ยนแปลง)": f"Create {num_questions} science exercises about matter for Grade 4. Include: states of matter, physical changes.",
             "แรงและความดัน (แรงในธรรมชาติ, ความดันอากาศ)": f"Create {num_questions} science exercises about forces and pressure for Grade 4. Include: natural forces, air pressure.",
             "พลังงานไฟฟ้า (ไฟฟ้าพื้นฐาน, วงจรไฟฟ้า)": f"Create {num_questions} science exercises about electrical energy for Grade 4. Include: basics of electricity, electric circuits.",
-            
+
             # ป.5
             "ระบบสุขภาพ (ฮอร์โมน, การเจริญเติบโต)": f"Create {num_questions} science exercises about health system for Grade 5. Include: hormones, human growth and development.",
             "การสืบพันธุ์ (การสืบพันธุ์สัตว์, การสืบพันธุ์พืช)": f"Create {num_questions} science exercises about reproduction for Grade 5. Include: animal reproduction, plant reproduction.",
@@ -428,7 +428,7 @@ class WorksheetGenerator:
             "สสาร (อะตอม, ธาตุ, สารประกอบ)": f"Create {num_questions} science exercises about matter for Grade 5. Include: atoms, elements, compounds.",
             "แรงและการเคลื่อนที่ (แรงโน้มถ่วง, แรงเสียดทาน)": f"Create {num_questions} science exercises about forces and motion for Grade 5. Include: gravity, friction, motion.",
             "คลื่น (คลื่นเสียง, คลื่นแสง)": f"Create {num_questions} science exercises about waves for Grade 5. Include: sound waves, light waves, wave properties.",
-            
+
             # ป.6
             "ระบบต่อมไร้ท่อ (ฮอร์โมน, ต่อมไร้ท่อสำคัญ)": f"Create {num_questions} science exercises about endocrine system for Grade 6. Include: hormones, major endocrine glands.",
             "พันธุศาสตร์เบื้องต้น (ลักษณะทางพันธุกรรม, การถ่ายทอดลักษณะ)": f"Create {num_questions} science exercises about genetics for Grade 6. Include: inherited traits, genetic traits inheritance.",
@@ -436,14 +436,14 @@ class WorksheetGenerator:
             "สสารและพลังงาน (กฎทรงพลังงาน, การถ่ายโอนพลังงาน)": f"Create {num_questions} science exercises about matter and energy for Grade 6. Include: law of conservation of energy, energy transfer.",
             "ระบบสุริยะ (ดาวเคราะห์, การเกิดกลางวัน-กลางคืน)": f"Create {num_questions} science exercises about the solar system for Grade 6. Include: planets, day-night cycle, solar system.",
             "สิ่งแวดล้อม (ทรัพยากรธรรมชาติ, การอนุรักษ์)": f"Create {num_questions} science exercises about environment for Grade 6. Include: natural resources, conservation.",
-            
+
             # ม.1
             "สารบริสุทธิ์": f"Create {num_questions} science exercises about pure substances for Grade 7 (ม.1). Include: elements, compounds, mixtures, separation techniques.",
             "หน่วยพื้นฐานของสิ่งมีชีวิต": f"Create {num_questions} science exercises about basic units of living things for Grade 7 (ม.1). Include: cells, cell structure, cell function.",
             "หน่วยพื้นฐานของการดำรงชีวิตของพืช": f"Create {num_questions} science exercises about plant biology basics for Grade 7 (ม.1). Include: plant cells, photosynthesis, plant structures.",
             "พลังงานความร้อน": f"Create {num_questions} science exercises about heat energy for Grade 7 (ม.1). Include: heat transfer, thermal energy, temperature.",
             "กระบวนการเปลี่ยนแปลงลมฟ้าอากาศ": f"Create {num_questions} science exercises about weather and climate changes for Grade 7 (ม.1). Include: weather patterns, climate, atmospheric changes.",
-            
+
             # ม.2
             "สารละลาย": f"Create {num_questions} science exercises about solutions for Grade 8 (ม.2). Include: solubility, concentration, types of solutions.",
             "ร่างกายมนุษย์": f"Create {num_questions} science exercises about the human body for Grade 8 (ม.2). Include: body systems, organs, human anatomy.",
@@ -451,7 +451,7 @@ class WorksheetGenerator:
             "งานและพลังงาน": f"Create {num_questions} science exercises about work and energy for Grade 8 (ม.2). Include: work, kinetic/potential energy, energy transformation.",
             "การแยกสาร": f"Create {num_questions} science exercises about separation of substances for Grade 8 (ม.2). Include: filtration, distillation, chromatography.",
             "โลกและการเปลี่ยนแปลง": f"Create {num_questions} science exercises about Earth and its changes for Grade 8 (ม.2). Include: geological processes, plate tectonics, Earth's history.",
-            
+
             # ม.3
             "พันธุศาสตร์": f"Create {num_questions} science exercises about genetics for Grade 9 (ม.3). Include: Mendelian genetics, DNA, heredity patterns.",
             "คลื่นและแสง": f"Create {num_questions} science exercises about waves and light for Grade 9 (ม.3). Include: wave properties, light reflection/refraction, optics.",
@@ -459,7 +459,7 @@ class WorksheetGenerator:
             "ปฏิกิริยาเคมีและวัสดุในชีวิตประจำวัน": f"Create {num_questions} science exercises about chemical reactions and everyday materials for Grade 9 (ม.3). Include: types of reactions, common chemicals, materials science.",
             "ไฟฟ้า": f"Create {num_questions} science exercises about electricity for Grade 9 (ม.3). Include: circuits, Ohm's law, electrical energy, electromagnetism.",
             "ระบบนิเวศและความหลากหลายทางชีวภาพ": f"Create {num_questions} science exercises about ecosystems and biodiversity for Grade 9 (ม.3). Include: ecological relationships, biodiversity, conservation.",
-            
+
             # ===== เคมี (Chemistry) ม.4-6 =====
             # ม.4
             "อะตอมและสมบัติของธาตุ": f"Create {num_questions} chemistry exercises about atoms and properties of elements for Grade 10 (ม.4). Include: atomic structure, periodic table, electron configuration, periodic trends.",
@@ -474,7 +474,7 @@ class WorksheetGenerator:
             "ไฟฟ้าเคมี": f"Create {num_questions} chemistry exercises about electrochemistry for Grade 12 (ม.6). Include: galvanic cells, electrolysis, standard reduction potentials, Faraday's laws.",
             "ธาตุอินทรีย์และสารชีวโมเลกุล": f"Create {num_questions} chemistry exercises about organic compounds and biomolecules for Grade 12 (ม.6). Include: hydrocarbons, functional groups, carbohydrates, proteins, lipids, nucleic acids.",
             "เคมีอินทรีย์": f"Create {num_questions} chemistry exercises about organic chemistry for Grade 12 (ม.6). Include: organic reactions, synthesis, spectroscopy, polymer chemistry.",
-            
+
             # ===== ฟิสิกส์ (Physics) ม.4-6 =====
             # ม.4
             "การเคลื่อนที่แนวตรง": f"Create {num_questions} physics exercises about linear motion for Grade 10 (ม.4). Include: displacement, velocity, acceleration, kinematic equations, free fall.",
@@ -492,7 +492,7 @@ class WorksheetGenerator:
             "แม่เหล็กไฟฟ้า": f"Create {num_questions} physics exercises about electromagnetism for Grade 12 (ม.6). Include: magnetic fields, electromagnetic induction, Faraday's law, Maxwell's equations, AC circuits.",
             "ฟิสิกส์อะตอม": f"Create {num_questions} physics exercises about atomic physics for Grade 12 (ม.6). Include: atomic structure, quantum theory, photoelectric effect, Bohr model, atomic spectra.",
             "ฟิสิกส์นิวเคลียร์": f"Create {num_questions} physics exercises about nuclear physics for Grade 12 (ม.6). Include: nuclear structure, radioactivity, nuclear reactions, fission, fusion, half-life.",
-            
+
             # ===== ชีววิทยา (Biology) ม.4-6 =====
             # ม.4
             "ระบบย่อยอาหาร": f"Create {num_questions} biology exercises about digestive system for Grade 10 (ม.4). Include: digestive organs, enzymes, absorption, nutrition.",
@@ -513,24 +513,24 @@ class WorksheetGenerator:
             "นิเวศวิทยา": f"Create {num_questions} biology exercises about ecology for Grade 12 (ม.6). Include: ecosystems, energy flow, nutrient cycles, ecological succession, population dynamics.",
             "สิ่งแวดล้อม": f"Create {num_questions} biology exercises about environment for Grade 12 (ม.6). Include: biodiversity, conservation, pollution, climate change, sustainable development.",
         }
-        
+
         # Get prompt for topic or use default
         prompt = science_prompts.get(topic, f"Create {num_questions} science exercises about '{topic}' for {grade_level} students according to Thailand IPST curriculum.")
-        
+
         full_prompt = f"""
         {prompt}
-        
+
         Target Grade/Level: {grade_level}
         Curriculum: IPST (Thailand Institute of Scientific and Technological Research)
-        
+
         Output format:
         Q: [Question in Thai]
         A: [Answer in Thai]
-        
+
         Create exactly {num_questions} questions.
         Include a mix of: multiple choice, fill in the blank, short answer, and true/false questions.
         """
-        
+
         try:
             resp_text = self._generate_content(full_prompt)
             qs, ans = [], []
@@ -543,9 +543,9 @@ class WorksheetGenerator:
 
     def generate_chemistry_worksheet(self, topic, grade_level, num_questions=10):
         """Generates chemistry worksheets using AI based on IPST curriculum for ม.4-6."""
-        if not self.model and not self.client:
+        if not self.client:
             return ["Error: No API Key configured"], ["Please add API Key"]
-        
+
         chemistry_prompts = {
             # ม.4
             "อะตอมและสมบัติของธาตุ": f"Create {num_questions} chemistry exercises about atoms and properties of elements for Grade 10 (ม.4). Include: atomic structure, periodic table, electron configuration, periodic trends, atomic number, mass number.",
@@ -561,30 +561,30 @@ class WorksheetGenerator:
             "ธาตุอินทรีย์และสารชีวโมเลกุล": f"Create {num_questions} chemistry exercises about organic compounds and biomolecules for Grade 12 (ม.6). Include: hydrocarbons, functional groups, carbohydrates (monosaccharides, disaccharides, polysaccharides), proteins, lipids, nucleic acids (DNA, RNA).",
             "เคมีอินทรีย์": f"Create {num_questions} chemistry exercises about organic chemistry for Grade 12 (ม.6). Include: organic reaction mechanisms, substitution, addition, elimination reactions, polymerization, organic synthesis, IR and NMR spectroscopy basics.",
         }
-        
+
         grade_context = {
             "ม.4": "Grade 10 / Matthayom 4 (Thailand IPST Chemistry Curriculum)",
             "ม.5": "Grade 11 / Matthayom 5 (Thailand IPST Chemistry Curriculum)",
             "ม.6": "Grade 12 / Matthayom 6 (Thailand IPST Chemistry Curriculum)",
         }
-        
+
         prompt = chemistry_prompts.get(topic, f"Create {num_questions} chemistry exercises about '{topic}' for {grade_level} students according to Thailand IPST curriculum.")
-        
+
         full_prompt = f"""
         {prompt}
-        
+
         Target Grade/Level: {grade_context.get(grade_level, grade_level)}
         Curriculum: IPST (Thailand Institute of Scientific and Technological Research) Chemistry
-        
+
         Output format:
         Q: [Question in Thai]
         A: [Answer in Thai]
-        
+
         Create exactly {num_questions} questions.
         Include a mix of: multiple choice, fill in the blank, short answer, calculation problems, and true/false questions.
         For calculation problems, show the solution steps clearly.
         """
-        
+
         try:
             resp_text = self._generate_content(full_prompt)
             qs, ans = [], []
@@ -597,9 +597,9 @@ class WorksheetGenerator:
 
     def generate_physics_worksheet(self, topic, grade_level, num_questions=10):
         """Generates physics worksheets using AI based on IPST curriculum for ม.4-6."""
-        if not self.model and not self.client:
+        if not self.client:
             return ["Error: No API Key configured"], ["Please add API Key"]
-        
+
         physics_prompts = {
             # ม.4
             "การเคลื่อนที่แนวตรง": f"Create {num_questions} physics exercises about linear motion for Grade 10 (ม.4). Include: displacement, velocity, acceleration, kinematic equations, free fall, motion graphs (position-time, velocity-time).",
@@ -618,30 +618,30 @@ class WorksheetGenerator:
             "ฟิสิกส์อะตอม": f"Create {num_questions} physics exercises about atomic physics for Grade 12 (ม.6). Include: atomic models (Rutherford, Bohr), quantum theory, photoelectric effect, Compton scattering, atomic spectra, X-rays, wave-particle duality.",
             "ฟิสิกส์นิวเคลียร์": f"Create {num_questions} physics exercises about nuclear physics for Grade 12 (ม.6). Include: nuclear structure, nuclear forces, radioactivity (alpha, beta, gamma decay), radioactive decay laws (half-life), nuclear reactions (fission, fusion), nuclear energy, radiation safety.",
         }
-        
+
         grade_context = {
             "ม.4": "Grade 10 / Matthayom 4 (Thailand IPST Physics Curriculum)",
             "ม.5": "Grade 11 / Matthayom 5 (Thailand IPST Physics Curriculum)",
             "ม.6": "Grade 12 / Matthayom 6 (Thailand IPST Physics Curriculum)",
         }
-        
+
         prompt = physics_prompts.get(topic, f"Create {num_questions} physics exercises about '{topic}' for {grade_level} students according to Thailand IPST curriculum.")
-        
+
         full_prompt = f"""
         {prompt}
-        
+
         Target Grade/Level: {grade_context.get(grade_level, grade_level)}
         Curriculum: IPST (Thailand Institute of Scientific and Technological Research) Physics
-        
+
         Output format:
         Q: [Question in Thai]
         A: [Answer in Thai]
-        
+
         Create exactly {num_questions} questions.
         Include a mix of: multiple choice, fill in the blank, short answer, calculation problems, and diagram-based questions.
         For calculation problems, show the solution steps clearly with formulas used.
         """
-        
+
         try:
             resp_text = self._generate_content(full_prompt)
             qs, ans = [], []
@@ -654,9 +654,9 @@ class WorksheetGenerator:
 
     def generate_biology_worksheet(self, topic, grade_level, num_questions=10):
         """Generates biology worksheets using AI based on IPST curriculum for ม.4-6."""
-        if not self.model and not self.client:
+        if not self.client:
             return ["Error: No API Key configured"], ["Please add API Key"]
-        
+
         biology_prompts = {
             # ม.4 - ระบบต่างๆ ในร่างกาย
             "ระบบย่อยอาหาร": f"Create {num_questions} biology exercises about digestive system for Grade 10 (ม.4). Include: digestive organs (mouth, esophagus, stomach, small/large intestine), digestive enzymes, mechanical/chemical digestion, absorption, nutrients, digestive disorders.",
@@ -677,30 +677,30 @@ class WorksheetGenerator:
             "นิเวศวิทยา": f"Create {num_questions} biology exercises about ecology for Grade 12 (ม.6). Include: ecosystems (biotic/abiotic factors), energy flow (food chains, food webs, trophic levels), biogeochemical cycles (carbon, nitrogen, water), ecological succession, population ecology (growth models, carrying capacity), community interactions, biodiversity indices.",
             "สิ่งแวดล้อม": f"Create {num_questions} biology exercises about environment for Grade 12 (ม.6). Include: biodiversity importance, threats to biodiversity (habitat loss, pollution, overexploitation, invasive species), conservation strategies (protected areas, wildlife corridors, captive breeding), pollution (air, water, soil), climate change impacts, sustainable development, environmental policies.",
         }
-        
+
         grade_context = {
             "ม.4": "Grade 10 / Matthayom 4 (Thailand IPST Biology Curriculum)",
             "ม.5": "Grade 11 / Matthayom 5 (Thailand IPST Biology Curriculum)",
             "ม.6": "Grade 12 / Matthayom 6 (Thailand IPST Biology Curriculum)",
         }
-        
+
         prompt = biology_prompts.get(topic, f"Create {num_questions} biology exercises about '{topic}' for {grade_level} students according to Thailand IPST curriculum.")
-        
+
         full_prompt = f"""
         {prompt}
-        
+
         Target Grade/Level: {grade_context.get(grade_level, grade_level)}
         Curriculum: IPST (Thailand Institute of Scientific and Technological Research) Biology
-        
+
         Output format:
         Q: [Question in Thai]
         A: [Answer in Thai]
-        
+
         Create exactly {num_questions} questions.
         Include a mix of: multiple choice, fill in the blank, short answer, diagram identification, and true/false questions.
         Use scientific terminology appropriate for Thai high school biology students.
         """
-        
+
         try:
             resp_text = self._generate_content(full_prompt)
             qs, ans = [], []
@@ -749,9 +749,9 @@ class WorksheetGenerator:
 
     def generate_thai_worksheet(self, topic, grade_level, num_questions=10, exercise_type="mix"):
         """Generates Thai language worksheets using AI based on Thai curriculum."""
-        if not self.model:
+        if not self.client:
             return ["Error: No AI Key"], ["Please add API Key"]
-        
+
         # Grade context mapping
         grade_context = {
             "ป.1": "ประถมศึกษาปีที่ 1 (Grade 1)",
@@ -767,7 +767,7 @@ class WorksheetGenerator:
             "ม.5": "มัธยมศึกษาปีที่ 5 / ม.5 (Grade 11)",
             "ม.6": "มัธยมศึกษาปีที่ 6 / ม.6 (Grade 12)",
         }
-        
+
         # Exercise type prompts
         exercise_prompts = {
             "mix": f"Create {num_questions} Thai language exercises covering various aspects including writing, reading, grammar, vocabulary, and literature appropriate for {grade_context.get(grade_level, grade_level)}.",
@@ -777,7 +777,7 @@ class WorksheetGenerator:
             "vocabulary": f"Create {num_questions} Thai vocabulary exercises (คำศัพท์) for {grade_context.get(grade_level, grade_level)}. Include: word meanings, synonyms, antonyms, word usage, and vocabulary building.",
             "literature": f"Create {num_questions} Thai literature exercises (วรรณคดี) for {grade_context.get(grade_level, grade_level)}. Include: reading Thai poems, understanding Thai literature, and literary analysis.",
         }
-        
+
         # Topic-specific prompts for better accuracy
         topic_prompts = {
             # ป.1
@@ -853,28 +853,28 @@ class WorksheetGenerator:
             "การเขียนเพื่อสื่อสาร (บทความสารคดี)": f"Create {num_questions} Thai documentary writing exercises for ม.6. Cover: documentary articles, feature writing, communicative writing.",
             "การประเมินผลงานภาษา (การวิจารณ์, การประเมิน)": f"Create {num_questions} Thai language evaluation exercises for ม.6. Cover: literary criticism, language assessment, evaluative writing.",
         }
-        
+
         # Get prompt for topic or use exercise type prompt
         if topic in topic_prompts:
             base_prompt = topic_prompts[topic]
         else:
             base_prompt = exercise_prompts.get(exercise_type, exercise_prompts["mix"])
-        
+
         full_prompt = f"""
         {base_prompt}
-        
+
         Target Grade/Level: {grade_context.get(grade_level, grade_level)}
         Curriculum: หลักสูตรกระทรวงศึกษาธิการ (Thailand Ministry of Education)
-        
+
         Output format:
         Q: [Question in Thai]
         A: [Answer in Thai]
-        
+
         Create exactly {num_questions} questions.
         Include a mix of: multiple choice, fill in the blank, short answer, and true/false questions.
         Focus on: การเขียน (writing), การอ่าน (reading), หลักภาษา (grammar), คำศัพท์ (vocabulary), and วรรณคดี (literature) as appropriate.
         """
-        
+
         try:
             resp_text = self._generate_content(full_prompt)
             qs, ans = [], []
@@ -887,9 +887,9 @@ class WorksheetGenerator:
 
     def generate_english_worksheet(self, topic, grade_level, num_questions=10, exercise_type="mix"):
         """Generates English language worksheets using AI based on English curriculum."""
-        if not self.model:
+        if not self.client:
             return ["Error: No AI Key"], ["Please add API Key"]
-        
+
         # Grade context mapping
         grade_context = {
             "ป.1": "Primary 1 / Grade 1 (Elementary)",
@@ -905,7 +905,7 @@ class WorksheetGenerator:
             "ม.5": "Matthayom 5 / Grade 11 (Upper Secondary)",
             "ม.6": "Matthayom 6 / Grade 12 (Upper Secondary)",
         }
-        
+
         # Exercise type prompts
         exercise_prompts = {
             "mix": f"Create {num_questions} English language exercises covering various aspects including grammar, vocabulary, reading, writing, listening scripts, and speaking prompts appropriate for {grade_context.get(grade_level, grade_level)}.",
@@ -916,7 +916,7 @@ class WorksheetGenerator:
             "listening": f"Create {num_questions} English listening scripts for {grade_context.get(grade_level, grade_level)}. Include: short dialogues, passages for teachers to read aloud, and comprehension questions.",
             "speaking": f"Create {num_questions} English speaking prompts/flashcards for {grade_context.get(grade_level, grade_level)}. Include: conversation starters, role-play scenarios, picture description prompts, and oral exercises.",
         }
-        
+
         # Topic-specific prompts for better accuracy
         topic_prompts = {
             # ป.1
@@ -928,7 +928,7 @@ class WorksheetGenerator:
             "Body Parts (Head, eyes, ears, nose, etc.)": f"Create {num_questions} English body parts vocabulary exercises for Grade 1. Cover: body part names, body part identification, and simple sentences about body parts.",
             "Family (Mother, father, sister, brother)": f"Create {num_questions} English family vocabulary exercises for Grade 1. Cover: family members, family relationships, and introducing family.",
             "Animals (Cat, dog, bird, fish, etc.)": f"Create {num_questions} English animal vocabulary exercises for Grade 1. Cover: animal names, animal sounds, animal identification, and animal facts.",
-            
+
             # ป.2
             "Numbers 11-100 (counting)": f"Create {num_questions} English numbers 11-100 exercises for Grade 2. Cover: number words, counting by tens, place value, and number patterns.",
             "Days & Months (Monday-Sunday, Jan-Dec)": f"Create {num_questions} English days and months exercises for Grade 2. Cover: days of the week, months of the year, calendar vocabulary, and date writing.",
@@ -938,7 +938,7 @@ class WorksheetGenerator:
             "Weather (Hot, cold, rainy, sunny)": f"Create {num_questions} English weather vocabulary exercises for Grade 2. Cover: weather words, weather descriptions, and weather forecasting.",
             "Places (School, home, market, hospital)": f"Create {num_questions} English places vocabulary exercises for Grade 2. Cover: common places, directions to places, and community buildings.",
             "Greetings (Hello, goodbye, thank you)": f"Create {num_questions} English greetings and polite expressions exercises for Grade 2. Cover: greetings, farewells, polite words, and social expressions.",
-            
+
             # ป.3
             "Present Simple (I am, you are, he/she is)": f"Create {num_questions} English Present Simple tense exercises for Grade 3. Cover: am/is/are usage, affirmative, negative, and interrogative forms.",
             "This-That-These-Those": f"Create {num_questions} English demonstratives exercises for Grade 3. Cover: this/that/these/those, singular and plural, and near/far distinction.",
@@ -948,7 +948,7 @@ class WorksheetGenerator:
             "Daily Routines (Wake up, eat breakfast)": f"Create {num_questions} English daily routine exercises for Grade 3. Cover: daily activities, time expressions, and describing routines.",
             "Occupations (Doctor, teacher, farmer)": f"Create {num_questions} English occupations vocabulary exercises for Grade 3. Cover: job names, job descriptions, and what people do.",
             "Adjectives (Big, small, tall, beautiful)": f"Create {num_questions} English adjectives exercises for Grade 3. Cover: descriptive adjectives, comparison, and using adjectives in sentences.",
-            
+
             # ป.4
             "Past Simple (was/were)": f"Create {num_questions} English Past Simple (was/were) exercises for Grade 4. Cover: affirmative, negative, questions with was/were, and time expressions.",
             "Regular Verbs (Played, watched, cleaned)": f"Create {num_questions} English regular past tense verbs exercises for Grade 4. Cover: -ed endings, spelling rules, and affirmative sentences.",
@@ -958,7 +958,7 @@ class WorksheetGenerator:
             "Commands (Open the door, close the window)": f"Create {num_questions} English imperative/commands exercises for Grade 4. Cover: giving commands, instructions, and imperatives.",
             "Descriptions (Describing people/things)": f"Create {num_questions} English description exercises for Grade 4. Cover: describing appearance, personality, and objects.",
             "School Subjects (Math, English, Science, Art)": f"Create {num_questions} English school subjects vocabulary exercises for Grade 4. Cover: subject names, schedules, and preferences.",
-            
+
             # ป.5
             "Future Will-Going to": f"Create {num_questions} English future tense (will vs going to) exercises for Grade 5. Cover: predictions, plans, intentions, and differences between will and going to.",
             "Present Continuous (am/is/are + verb-ing)": f"Create {num_questions} English Present Continuous tense exercises for Grade 5. Cover: affirmative, negative, questions, and present vs past usage.",
@@ -968,7 +968,7 @@ class WorksheetGenerator:
             "Giving Directions (Turn left, turn right)": f"Create {num_questions} English giving directions exercises for Grade 5. Cover: direction words, giving directions, and following maps.",
             "Invitations (Would you like...?, Let's...)": f"Create {num_questions} English invitation exercises for Grade 5. Cover: making invitations, accepting, declining, and suggestions.",
             "Letter Writing (Formal and informal)": f"Create {num_questions} English letter writing exercises for Grade 5. Cover: formal letters, informal letters, parts of a letter, and writing practice.",
-            
+
             # ป.6
             "Tenses Review (Present, Past, Future)": f"Create {num_questions} English tenses review exercises for Grade 6. Cover: all three tenses, usage, and sentence transformation.",
             "Modal Verbs (Must, should, have to, may)": f"Create {num_questions} English modal verbs exercises for Grade 6. Cover: must, should, have to, may, might, can, could - meanings and usage.",
@@ -978,7 +978,7 @@ class WorksheetGenerator:
             "Conjunctions (And, but, or, because, so)": f"Create {num_questions} English conjunctions exercises for Grade 6. Cover: coordinating conjunctions, compound sentences, and usage.",
             "Reading Comprehension (Passages, questions)": f"Create {num_questions} English reading comprehension exercises for Grade 6. Cover: various passages, comprehension questions, and reading strategies.",
             "Paragraph Writing (3-5 sentences)": f"Create {num_questions} English paragraph writing exercises for Grade 6. Cover: topic sentence, supporting details, concluding sentence.",
-            
+
             # ม.1
             "Present Perfect (have/has + verb3)": f"Create {num_questions} English Present Perfect exercises for ม.1. Cover: affirmative, negative, questions, ever, never, for, since.",
             "Since-For (time expressions)": f"Create {num_questions} English since/for time expressions exercises for ม.1. Cover: duration vs point in time, present perfect usage.",
@@ -990,7 +990,7 @@ class WorksheetGenerator:
             "Shopping & Money": f"Create {num_questions} English shopping and money exercises for ม.1. Cover: prices, bargaining, making purchases, and transactions.",
             "Travel & Transportation": f"Create {num_questions} English travel and transportation exercises for ม.1. Cover: modes of transport, booking tickets, travel vocabulary.",
             "Health & Fitness": f"Create {num_questions} English health and fitness exercises for ม.1. Cover: health problems, doctor visits, healthy lifestyle.",
-            
+
             # ม.2
             "Past Continuous (was/were + verb-ing)": f"Create {num_questions} English Past Continuous exercises for ม.2. Cover: affirmative, negative, questions, and Past Simple vs Continuous.",
             "Future Continuous (will be + verb-ing)": f"Create {num_questions} English Future Continuous exercises for ม.2. Cover: will be + verb-ing, time expressions, and usage.",
@@ -1002,7 +1002,7 @@ class WorksheetGenerator:
             "Email Writing (Formal and informal)": f"Create {num_questions} English email writing exercises for ม.2. Cover: formal emails, informal emails, email structure.",
             "News Writing": f"Create {num_questions} English news writing exercises for ม.2. Cover: news article structure, headline writing, 5 Ws.",
             "Story Writing": f"Create {num_questions} English story writing exercises for ม.2. Cover: narrative structure, story elements, creative writing.",
-            
+
             # ม.3
             "Conditionals All Types (Type 1, 2, 3)": f"Create {num_questions} English all types of conditionals exercises for ม.3. Cover: Type 1, 2, 3, mixed conditionals.",
             "Passive Voice (All tenses)": f"Create {num_questions} English all tenses passive voice exercises for ม.3. Cover: all tenses in passive, by + agent, and sentence transformation.",
@@ -1014,7 +1014,7 @@ class WorksheetGenerator:
             "O-NET Preparation (Grammar, vocabulary)": f"Create {num_questions} English O-NET preparation exercises for ม.3. Cover: grammar review, vocabulary, test strategies.",
             "Critical Reading": f"Create {num_questions} English critical reading exercises for ม.3. Cover: analyzing texts, inference, evaluation, and critical thinking.",
             "Creative Writing": f"Create {num_questions} English creative writing exercises for ม.3. Cover: creative expression, storytelling techniques, descriptive writing.",
-            
+
             # ม.4
             "Narrative Tenses (Past perfect)": f"Create {num_questions} English narrative tenses exercises for ม.4. Cover: past perfect, past perfect continuous, story sequencing.",
             "Future Perfect (will have + verb3)": f"Create {num_questions} English Future Perfect exercises for ม.4. Cover: will have + past participle, by + time expressions.",
@@ -1026,7 +1026,7 @@ class WorksheetGenerator:
             "Vocabulary 1500 (Word families, synonyms)": f"Create {num_questions} English vocabulary building exercises for ม.4. Cover: word families, synonyms, antonyms, collocations.",
             "Academic Vocabulary": f"Create {num_questions} English academic vocabulary exercises for ม.4. Cover: academic words, formal language, scholarly expressions.",
             "Debating Skills": f"Create {num_questions} English debating skills exercises for ม.4. Cover: arguments, counterarguments, debate structure, presentation.",
-            
+
             # ม.5
             "Mixed Tenses Review": f"Create {num_questions} English mixed tenses review exercises for ม.5. Cover: all tenses in context, tense selection, and accuracy.",
             "Modal Verbs Review (Must, have to, should)": f"Create {num_questions} English modal verbs review exercises for ม.5. Cover: must, have to, should, ought to, mustn't, don't have to.",
@@ -1038,7 +1038,7 @@ class WorksheetGenerator:
             "Vocabulary 2000 (Idioms, phrasal verbs)": f"Create {num_questions} English advanced vocabulary exercises for ม.5. Cover: idioms, phrasal verbs, expressions, and usage.",
             "Academic Writing": f"Create {num_questions} English academic writing exercises for ม.5. Cover: research writing, citations, formal style, academic conventions.",
             "Presentation Skills": f"Create {num_questions} English presentation skills exercises for ม.5. Cover: presentation structure, delivery, visual aids, handling questions.",
-            
+
             # ม.6
             "Advanced Grammar (Inversion, emphasis)": f"Create {num_questions} English advanced grammar exercises for ม.6. Cover: inversion, emphasis, cleft sentences, advanced structures.",
             "Academic Writing (Research, citations)": f"Create {num_questions} English academic writing exercises for ม.6. Cover: research papers, citations, bibliography, academic integrity.",
@@ -1049,29 +1049,29 @@ class WorksheetGenerator:
             "Global Issues (Environment, technology)": f"Create {num_questions} English global issues exercises for ม.6. Cover: environment, technology, climate change, social issues.",
             "Literature (Poems, short stories)": f"Create {num_questions} English literature exercises for ม.6. Cover: poetry analysis, short stories, literary devices, appreciation.",
         }
-        
+
         # Get prompt for topic or use exercise type prompt
         if topic in topic_prompts:
             base_prompt = topic_prompts[topic]
         else:
             base_prompt = exercise_prompts.get(exercise_type, exercise_prompts["mix"])
-        
+
         full_prompt = f"""
         {base_prompt}
-        
+
         Target Grade/Level: {grade_context.get(grade_level, grade_level)}
         Curriculum: Thailand English Language Curriculum (กระทรวงศึกษาธิการ)
-        
+
         Output format:
         Q: [Question in English]
         A: [Answer in English]
-        
+
         Create exactly {num_questions} questions.
         Include a mix of: multiple choice, fill in the blank, short answer, matching, and true/false questions as appropriate.
         Focus on: Grammar, Vocabulary, Reading, Writing, Listening scripts, and Speaking prompts as selected.
         Make exercises appropriate for the grade level and engaging for students.
         """
-        
+
         try:
             resp_text = self._generate_content(full_prompt)
             qs, ans = [], []
@@ -1094,11 +1094,11 @@ class WorksheetGenerator:
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
         w, h = A4
-        
+
         # Header
         c.setStrokeColor(blue); c.setLineWidth(2); c.setDash(6,3)
         c.rect(1*cm, 1*cm, w-2*cm, h-2*cm); c.setDash([]); c.setStrokeColor(black)
-        
+
         if uploaded_logo:
             try:
                 logo = Image.open(uploaded_logo)
@@ -1116,7 +1116,7 @@ class WorksheetGenerator:
 
         # Body
         y = h - 6*cm
-        
+
         # Handle all content types (including IPST topics)
         if content_type in ["Word Search"]:
             grid, words = data
@@ -1126,11 +1126,11 @@ class WorksheetGenerator:
             for r, row in enumerate(grid):
                 for col, char in enumerate(row):
                     c.drawString(start_x + col*cell, y - r*cell, char)
-            
+
             y_words = y - len(grid)*cell - 1*cm
             c.setFont(self.font_name, 12)
             c.drawString(2*cm, y_words, "Find: " + ", ".join(words))
-        
+
         elif content_type in ["Handwriting Practice"]:
             c.setFont("Courier", 30); c.setFillColor(lightgrey)
             for line in data:
@@ -1141,7 +1141,7 @@ class WorksheetGenerator:
                 c.drawString(2*cm, y-8, line)
                 y -= 2.5*cm
                 if y < 3*cm: c.showPage(); y = h-5*cm
-        
+
         else:
             # Default: render as questions/worksheet (all IPST topics)
             c.setFont(self.font_name, 14)
@@ -1154,14 +1154,14 @@ class WorksheetGenerator:
                 for line in lines:
                     text.textLine(line)
                 c.drawText(text)
-                
+
                 # Dynamic spacing
                 height_needed = len(lines) * 0.7*cm + 1*cm
                 y -= height_needed
                 if y < 3*cm: c.showPage(); y = h-4*cm
 
         c.showPage()
-        
+
         # Answers
         if answers:
             c.setFont(self.font_name, 20); c.drawCentredString(w/2, h-2.5*cm, f"ANSWER KEY: {title}")
@@ -1180,7 +1180,7 @@ class WorksheetGenerator:
         # Header/Setup
         doc.add_heading(title, 0)
         doc.add_paragraph(f"{school_name}\nName: ________________ Date: _________")
-        
+
         # Handle all content types
         if content_type in ["Word Search"]:
             grid, words = data
@@ -1196,11 +1196,11 @@ class WorksheetGenerator:
             for i, q in enumerate(data):
                 doc.add_paragraph(f"{i+1}. {q}")
                 doc.add_paragraph("_"*20)
-            
+
         if answers:
             doc.add_page_break()
             doc.add_heading("Answers", 1)
             for i, a in enumerate(answers): doc.add_paragraph(f"{i+1}) {a}")
-            
+
         b = io.BytesIO(); doc.save(b); b.seek(0)
         return b

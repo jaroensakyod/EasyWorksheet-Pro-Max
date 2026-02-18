@@ -3,7 +3,7 @@ import streamlit as st
 import os
 import sys
 from PIL import Image
-import google.generativeai as genai
+from google import genai
 
 # Config path for local files
 EXPORT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -73,8 +73,9 @@ with st.expander("🔑 ตั้งค่า API Key", expanded=not st.session_s
             try:
                 # Configure and test based on provider
                 if selected_provider == "Google Gemini":
-                    genai.configure(api_key=clean_key)
-                    list(genai.list_models())  # Test call
+                    client = genai.Client(api_key=clean_key)
+                    # Test call - list models
+                    list(client.models.list())
                 # For Groq and OpenRouter, we'll test through the generator
                 
                 st.session_state.api_key = clean_key
